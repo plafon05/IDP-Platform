@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	ErrUserNotFound = errors.New("user not found")
-	ErrEmailExists  = errors.New("email already exists")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrEmailExists            = errors.New("email already exists")
+	ErrInvalidCurrentPassword = errors.New("current password is invalid")
 )
 
 type Service struct {
@@ -37,9 +38,10 @@ type ListResult struct {
 }
 
 type ListMeta struct {
-	Total int `json:"total"`
-	Page  int `json:"page"`
-	Limit int `json:"limit"`
+	Total      int `json:"total"`
+	Page       int `json:"page"`
+	Limit      int `json:"limit"`
+	TotalPages int `json:"total_pages"`
 }
 
 type ListParams struct {
@@ -65,6 +67,13 @@ type UpdateInput struct {
 	Position   string
 	IsActive   bool
 	Roles      []string
+}
+
+type UpdateProfileInput struct {
+	FirstName  string
+	LastName   string
+	MiddleName *string
+	Position   string
 }
 
 func NewService(db *pgxpool.Pool) *Service {
@@ -111,7 +120,12 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 
 	result := &ListResult{
 		Data: make([]User, 0, params.Limit),
-		Meta: ListMeta{Total: total, Page: params.Page, Limit: params.Limit},
+		Meta: ListMeta{
+			Total:      total,
+			Page:       params.Page,
+			Limit:      params.Limit,
+			TotalPages: totalPages(total, params.Limit),
+		},
 	}
 
 	for rows.Next() {
@@ -220,6 +234,60 @@ func (s *Service) Update(ctx context.Context, userID string, input UpdateInput) 
 	return s.Get(ctx, userID)
 }
 
+func (s *Service) UpdateProfile(ctx context.Context, userID string, input UpdateProfileInput) (*User, error) {
+	tag, err := s.db.Exec(ctx, `
+		UPDATE users
+		SET first_name = $2,
+			last_name = $3,
+			middle_name = $4,
+			position = $5,
+			updated_at = NOW()
+		WHERE id = $1 AND is_active = true
+	`, userID, input.FirstName, input.LastName, input.MiddleName, input.Position)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	return s.Get(ctx, userID)
+}
+
+func (s *Service) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	var currentHash string
+	err := s.db.QueryRow(ctx, `
+		SELECT password_hash
+		FROM users
+		WHERE id = $1 AND is_active = true
+	`, userID).Scan(&currentHash)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+
+	if !auth.ComparePassword(currentHash, currentPassword) {
+		return ErrInvalidCurrentPassword
+	}
+
+	newHash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.Exec(ctx, `
+		UPDATE users
+		SET password_hash = $2,
+			failed_login_attempts = 0,
+			locked_until = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+	`, userID, newHash)
+	return err
+}
+
 func (s *Service) Deactivate(ctx context.Context, userID string) error {
 	tag, err := s.db.Exec(ctx, `
 		UPDATE users
@@ -290,4 +358,11 @@ func normalizeRoles(roles []string) []string {
 	}
 
 	return result
+}
+
+func totalPages(total, limit int) int {
+	if total == 0 {
+		return 0
+	}
+	return (total + limit - 1) / limit
 }
