@@ -8,28 +8,44 @@ import (
 )
 
 type Config struct {
-	AppEnv       string
-	Port         string
-	DatabaseURL  string
-	RedisURL     string
-	FrontendURL  string
-	CORSOrigins  []string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	IdleTimeout  time.Duration
+	AppEnv             string
+	Port               string
+	DatabaseURL        string
+	RedisURL           string
+	FrontendURL        string
+	CORSOrigins        []string
+	JWTSecret          string
+	JWTAccessTTL       time.Duration
+	JWTRefreshTTL      time.Duration
+	RefreshCookieName  string
+	SeedAdminEmail     string
+	SeedAdminPassword  string
+	SeedAdminFirstName string
+	SeedAdminLastName  string
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	IdleTimeout        time.Duration
 }
 
 func Load() Config {
 	return Config{
-		AppEnv:       env("APP_ENV", "development"),
-		Port:         env("APP_PORT", "8080"),
-		DatabaseURL:  env("DATABASE_URL", "postgres://idp:idp@localhost:5432/idp?sslmode=disable"),
-		RedisURL:     env("REDIS_URL", "redis://localhost:6379"),
-		FrontendURL:  env("FRONTEND_URL", "http://localhost:5173"),
-		CORSOrigins:  splitCSV(env("CORS_ORIGINS", "http://localhost:5173")),
-		ReadTimeout:  secondsEnv("HTTP_READ_TIMEOUT_SECONDS", 10),
-		WriteTimeout: secondsEnv("HTTP_WRITE_TIMEOUT_SECONDS", 15),
-		IdleTimeout:  secondsEnv("HTTP_IDLE_TIMEOUT_SECONDS", 60),
+		AppEnv:             env("APP_ENV", "development"),
+		Port:               env("APP_PORT", "8080"),
+		DatabaseURL:        env("DATABASE_URL", "postgres://idp:idp@localhost:5432/idp?sslmode=disable"),
+		RedisURL:           env("REDIS_URL", "redis://localhost:6379"),
+		FrontendURL:        env("FRONTEND_URL", "http://localhost:5173"),
+		CORSOrigins:        splitCSV(env("CORS_ORIGINS", "http://localhost:5173")),
+		JWTSecret:          env("JWT_SECRET", "local-development-secret-change-me"),
+		JWTAccessTTL:       durationEnv("JWT_ACCESS_TTL", 15*time.Minute),
+		JWTRefreshTTL:      durationEnv("JWT_REFRESH_TTL", 30*24*time.Hour),
+		RefreshCookieName:  env("REFRESH_COOKIE_NAME", "idp_refresh_token"),
+		SeedAdminEmail:     env("SEED_ADMIN_EMAIL", "admin@idp.local"),
+		SeedAdminPassword:  env("SEED_ADMIN_PASSWORD", "Admin12345"),
+		SeedAdminFirstName: env("SEED_ADMIN_FIRST_NAME", "HR"),
+		SeedAdminLastName:  env("SEED_ADMIN_LAST_NAME", "Admin"),
+		ReadTimeout:        secondsEnv("HTTP_READ_TIMEOUT_SECONDS", 10),
+		WriteTimeout:       secondsEnv("HTTP_WRITE_TIMEOUT_SECONDS", 15),
+		IdleTimeout:        secondsEnv("HTTP_IDLE_TIMEOUT_SECONDS", 60),
 	}
 }
 
@@ -53,6 +69,20 @@ func secondsEnv(key string, fallback int) time.Duration {
 	}
 
 	return time.Duration(value) * time.Second
+}
+
+func durationEnv(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+
+	return value
 }
 
 func splitCSV(raw string) []string {

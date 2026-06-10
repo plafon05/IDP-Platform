@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"idp-platform/backend/internal/auth"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/database"
 	"idp-platform/backend/internal/handler"
@@ -34,6 +35,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer dbPool.Close()
+
+	if err := auth.SeedAdmin(context.Background(), cfg, dbPool); err != nil {
+		slog.Error("seed admin failed", "error", err)
+		os.Exit(1)
+	}
 
 	router := handler.NewRouter(cfg, dbPool)
 	server := appserver.NewHTTPServer(cfg, router)

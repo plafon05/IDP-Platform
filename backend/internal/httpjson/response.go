@@ -28,3 +28,9 @@ func WriteError(w http.ResponseWriter, status int, code, message string) {
 		},
 	})
 }
+
+func DecodeJSON(r *http.Request, payload any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(payload)
+}

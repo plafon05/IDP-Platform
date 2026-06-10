@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"idp-platform/backend/internal/auth"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/httpjson"
 
@@ -14,16 +15,39 @@ import (
 
 func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
 	mux := http.NewServeMux()
+	authService := auth.NewService(cfg, dbPool)
+	authHandlers := authHandler{cfg: cfg, service: authService}
+
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("GET /api/v1/ready", readinessHandler(cfg, dbPool))
+	mux.HandleFunc("POST /api/v1/auth/login", authHandlers.login)
+	mux.HandleFunc("POST /api/v1/auth/refresh", authHandlers.refresh)
+	mux.HandleFunc("POST /api/v1/auth/logout", authHandlers.logout)
+	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
 
 	notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")
 	})
 
 	return cors(cfg.CORSOrigins)(recoverer(timeout(60*time.Second, logger(routeOrNotFound(mux, notFound)))))
+}
+
+func (h authHandler) me(w http.ResponseWriter, r *http.Request) {
+	claims, ok := accessClaimsFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+
+	user, err := h.service.GetUserByID(r.Context(), claims.UserID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "User not found")
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, user)
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
