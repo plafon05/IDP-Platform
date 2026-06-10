@@ -39,6 +39,15 @@ type User struct {
 	Roles      []string `json:"roles"`
 }
 
+func (u User) HasRole(role string) bool {
+	for _, currentRole := range u.Roles {
+		if currentRole == role {
+			return true
+		}
+	}
+	return false
+}
+
 type TokenPair struct {
 	AccessToken           string
 	AccessTokenExpiresAt  time.Time

@@ -9,6 +9,7 @@ import (
 	"idp-platform/backend/internal/auth"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/httpjson"
+	"idp-platform/backend/internal/users"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,6 +18,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
 	mux := http.NewServeMux()
 	authService := auth.NewService(cfg, dbPool)
 	authHandlers := authHandler{cfg: cfg, service: authService}
+	usersHandlers := usersHandler{service: users.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -26,6 +28,11 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/refresh", authHandlers.refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandlers.logout)
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
+	mux.Handle("GET /api/v1/users", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.list))))
+	mux.Handle("POST /api/v1/users", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.create))))
+	mux.Handle("GET /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.get))))
+	mux.Handle("PUT /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.update))))
+	mux.Handle("DELETE /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.deactivate))))
 
 	notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")

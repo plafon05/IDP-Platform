@@ -33,6 +33,25 @@ func authMiddleware(cfg config.Config, next http.Handler) http.Handler {
 	})
 }
 
+func requireRole(role string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := accessClaimsFromContext(r.Context())
+		if !ok {
+			httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+			return
+		}
+
+		for _, currentRole := range claims.Roles {
+			if currentRole == role {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		httpjson.WriteError(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+	})
+}
+
 func accessClaimsFromContext(ctx context.Context) (*auth.AccessClaims, bool) {
 	claims, ok := ctx.Value(claimsContextKey).(*auth.AccessClaims)
 	return claims, ok
