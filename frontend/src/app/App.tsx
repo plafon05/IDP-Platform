@@ -1,22 +1,39 @@
 import { Bell, BookOpenCheck, ChartNoAxesCombined, LayoutDashboard, LogOut, Search, Settings, Users } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
+import { UsersPage } from '../pages/UsersPage';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Дашборд', active: true },
-  { icon: BookOpenCheck, label: 'Мои ИПР' },
-  { icon: Users, label: 'Команда' },
-  { icon: ChartNoAxesCombined, label: 'Аналитика' },
-  { icon: Settings, label: 'Настройки' },
-];
+type Section = 'dashboard' | 'users';
+type NavItem = {
+  id: Section | 'plans' | 'analytics' | 'settings';
+  icon: typeof LayoutDashboard;
+  label: string;
+  disabled?: boolean;
+};
 
 export function App() {
   const status = useSessionStore((state) => state.status);
   const user = useSessionStore((state) => state.user);
   const bootstrap = useSessionStore((state) => state.bootstrap);
   const logout = useSessionStore((state) => state.logout);
+  const [section, setSection] = useState<Section>('dashboard');
+
+  const navItems = useMemo<NavItem[]>(() => {
+    const items: NavItem[] = [
+      { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Дашборд' },
+      { id: 'plans' as const, icon: BookOpenCheck, label: 'Мои ИПР', disabled: true },
+      { id: 'analytics' as const, icon: ChartNoAxesCombined, label: 'Аналитика', disabled: true },
+      { id: 'settings' as const, icon: Settings, label: 'Настройки', disabled: true },
+    ];
+
+    if (user?.roles.includes('hr_admin')) {
+      items.splice(1, 0, { id: 'users' as const, icon: Users, label: 'Пользователи' });
+    }
+
+    return items;
+  }, [user?.roles]);
 
   useEffect(() => {
     void bootstrap();
@@ -35,6 +52,8 @@ export function App() {
   }
 
   const initials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'ID';
+  const pageTitle = section === 'users' ? 'Управление пользователями' : 'Индивидуальные планы развития';
+  const breadcrumb = section === 'users' ? 'Главная / Пользователи' : 'Главная / Дашборд';
 
   return (
     <div className="shell">
@@ -49,7 +68,17 @@ export function App() {
 
         <nav className="nav-list">
           {navItems.map((item) => (
-            <button className={`nav-item ${item.active ? 'active' : ''}`} key={item.label} type="button">
+            <button
+              className={`nav-item ${section === item.id ? 'active' : ''}`}
+              disabled={item.disabled}
+              key={item.label}
+              onClick={() => {
+                if (item.id === 'dashboard' || item.id === 'users') {
+                  setSection(item.id);
+                }
+              }}
+              type="button"
+            >
               <item.icon size={18} aria-hidden="true" />
               <span>{item.label}</span>
             </button>
@@ -60,8 +89,8 @@ export function App() {
       <div className="workspace">
         <header className="topbar">
           <div>
-            <div className="breadcrumbs">Главная / Дашборд</div>
-            <h1>Индивидуальные планы развития</h1>
+            <div className="breadcrumbs">{breadcrumb}</div>
+            <h1>{pageTitle}</h1>
           </div>
 
           <div className="topbar-actions">
@@ -83,7 +112,7 @@ export function App() {
         </header>
 
         <main>
-          <DashboardPage />
+          {section === 'users' ? <UsersPage /> : <DashboardPage />}
         </main>
       </div>
     </div>
