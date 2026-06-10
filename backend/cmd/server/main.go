@@ -13,6 +13,7 @@ import (
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/database"
 	"idp-platform/backend/internal/handler"
+	"idp-platform/backend/internal/migrations"
 	appserver "idp-platform/backend/internal/server"
 )
 
@@ -21,6 +22,11 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}))
 	slog.SetDefault(logger)
+
+	if err := migrations.Up(context.Background(), cfg); err != nil {
+		slog.Error("database migrations failed", "error", err)
+		os.Exit(1)
+	}
 
 	dbPool, err := database.Connect(context.Background(), cfg)
 	if err != nil {
