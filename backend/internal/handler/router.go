@@ -1,20 +1,23 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/httpjson"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(cfg config.Config) http.Handler {
+func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
-	mux.HandleFunc("GET /ready", readinessHandler(cfg))
+	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
-	mux.HandleFunc("GET /api/v1/ready", readinessHandler(cfg))
+	mux.HandleFunc("GET /api/v1/ready", readinessHandler(cfg, dbPool))
 
 	notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")
@@ -29,11 +32,28 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func readinessHandler(cfg config.Config) http.HandlerFunc {
+func readinessHandler(cfg config.Config, dbPool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		httpjson.WriteJSON(w, http.StatusOK, map[string]string{
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
+		if err := dbPool.Ping(ctx); err != nil {
+			httpjson.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"status": "not_ready",
+				"env":    cfg.AppEnv,
+				"checks": map[string]string{
+					"database": "unavailable",
+				},
+			})
+			return
+		}
+
+		httpjson.WriteJSON(w, http.StatusOK, map[string]any{
 			"status": "ready",
 			"env":    cfg.AppEnv,
+			"checks": map[string]string{
+				"database": "ok",
+			},
 		})
 	}
 }

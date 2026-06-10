@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/config"
+	"idp-platform/backend/internal/database"
 	"idp-platform/backend/internal/handler"
 	appserver "idp-platform/backend/internal/server"
 )
@@ -21,7 +22,14 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}))
 	slog.SetDefault(logger)
 
-	router := handler.NewRouter(cfg)
+	dbPool, err := database.Connect(context.Background(), cfg)
+	if err != nil {
+		slog.Error("database connection failed", "error", err)
+		os.Exit(1)
+	}
+	defer dbPool.Close()
+
+	router := handler.NewRouter(cfg, dbPool)
 	server := appserver.NewHTTPServer(cfg, router)
 
 	errCh := make(chan error, 1)
