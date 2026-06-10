@@ -1,5 +1,6 @@
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Target, UsersRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useSessionStore } from '../entities/session/model';
 import { api } from '../shared/api/client';
 import { MetricCard } from '../shared/ui/MetricCard';
 
@@ -17,6 +18,7 @@ const tasks = [
 
 export function DashboardPage() {
   const [apiStatus, setAPIStatus] = useState('checking');
+  const user = useSessionStore((state) => state.user);
 
   useEffect(() => {
     api
@@ -27,6 +29,14 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard">
+      <section className="welcome-band">
+        <div>
+          <span>Рабочая область</span>
+          <h2>{user ? `${user.first_name} ${user.last_name}` : 'Пользователь'}</h2>
+        </div>
+        <strong>{user?.position}</strong>
+      </section>
+
       <section className="metrics-grid" aria-label="Ключевые метрики">
         <MetricCard icon={Target} label="Активные ИПР" value="24" tone="blue" />
         <MetricCard icon={CheckCircle2} label="Средний прогресс" value="68%" tone="green" />

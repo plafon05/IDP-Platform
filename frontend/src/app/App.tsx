@@ -1,5 +1,8 @@
-import { Bell, BookOpenCheck, ChartNoAxesCombined, LayoutDashboard, Search, Settings, Users } from 'lucide-react';
+import { Bell, BookOpenCheck, ChartNoAxesCombined, LayoutDashboard, LogOut, Search, Settings, Users } from 'lucide-react';
+import { useEffect } from 'react';
+import { useSessionStore } from '../entities/session/model';
 import { DashboardPage } from '../pages/DashboardPage';
+import { LoginPage } from '../pages/LoginPage';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Дашборд', active: true },
@@ -10,6 +13,29 @@ const navItems = [
 ];
 
 export function App() {
+  const status = useSessionStore((state) => state.status);
+  const user = useSessionStore((state) => state.user);
+  const bootstrap = useSessionStore((state) => state.bootstrap);
+  const logout = useSessionStore((state) => state.logout);
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  if (status === 'checking') {
+    return (
+      <main className="loading-screen">
+        <div className="loading-mark">IDP</div>
+      </main>
+    );
+  }
+
+  if (status === 'anonymous') {
+    return <LoginPage />;
+  }
+
+  const initials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'ID';
+
   return (
     <div className="shell">
       <aside className="sidebar" aria-label="Основная навигация">
@@ -47,8 +73,11 @@ export function App() {
               <Bell size={20} />
               <span className="notification-dot" />
             </button>
+            <button className="icon-button" onClick={() => void logout()} type="button" aria-label="Выйти">
+              <LogOut size={20} />
+            </button>
             <button className="avatar-button" type="button" aria-label="Профиль пользователя">
-              АИ
+              {initials}
             </button>
           </div>
         </header>
