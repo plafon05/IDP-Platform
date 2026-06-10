@@ -21,7 +21,6 @@ docker compose up --build
 - API health: `http://localhost:8080/health`
 - API ready: `http://localhost:8080/ready`
 - Frontend через контейнер: `http://localhost:3000`
-- Network: `http://192.168.1.102:5173/`
 
 Для разработки фронтенда с HMR:
 

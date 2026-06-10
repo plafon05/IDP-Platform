@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .env.local
+docker-compose.override.yml
 
 backend/server
 backend/tmp/
