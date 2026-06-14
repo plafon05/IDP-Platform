@@ -33,6 +33,8 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
 	mux.Handle("GET /api/v1/users", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.list))))
 	mux.Handle("POST /api/v1/users", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.create))))
 	mux.Handle("POST /api/v1/users/import", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.importCSV))))
+	mux.Handle("GET /api/v1/users/subordinates", authMiddleware(cfg, http.HandlerFunc(usersHandlers.subordinates)))
+	mux.Handle("GET /api/v1/users/{id}/idps", authMiddleware(cfg, http.HandlerFunc(usersHandlers.idps)))
 	mux.Handle("GET /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.get))))
 	mux.Handle("PUT /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.update))))
 	mux.Handle("DELETE /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.deactivate))))

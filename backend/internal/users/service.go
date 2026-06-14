@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"idp-platform/backend/internal/auth"
 
@@ -30,6 +31,20 @@ type User struct {
 	Position   string   `json:"position"`
 	IsActive   bool     `json:"is_active"`
 	Roles      []string `json:"roles"`
+}
+
+type IDPSummary struct {
+	ID             string  `json:"id"`
+	EmployeeID     string  `json:"employee_id"`
+	ManagerID      string  `json:"manager_id"`
+	Title          string  `json:"title"`
+	Goals          *string `json:"goals,omitempty"`
+	StartDate      string  `json:"start_date"`
+	EndDate        string  `json:"end_date"`
+	Status         string  `json:"status"`
+	TasksTotal     int     `json:"tasks_total"`
+	TasksCompleted int     `json:"tasks_completed"`
+	Progress       int     `json:"progress"`
 }
 
 type ListResult struct {
@@ -179,6 +194,98 @@ func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 	}
 
 	return &user, nil
+}
+
+func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]User, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT id::text, email, first_name, last_name, middle_name, position, is_active
+		FROM users
+		WHERE manager_id = $1 AND is_active = true
+		ORDER BY last_name, first_name
+	`, managerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]User, 0)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.IsActive); err != nil {
+			return nil, err
+		}
+		user.Roles, err = s.roles(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, user)
+	}
+
+	return result, rows.Err()
+}
+
+func (s *Service) ListIDPs(ctx context.Context, userID string) ([]IDPSummary, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT i.id::text,
+			i.employee_id::text,
+			i.manager_id::text,
+			i.title,
+			i.goals,
+			i.start_date,
+			i.end_date,
+			i.status,
+			COUNT(t.id)::int,
+			COUNT(t.id) FILTER (WHERE t.status = 'completed')::int,
+			COALESCE(ROUND(AVG(t.progress))::int, 0)
+		FROM idps i
+		LEFT JOIN tasks t ON t.idp_id = i.id
+		WHERE i.employee_id = $1
+		GROUP BY i.id
+		ORDER BY i.created_at DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]IDPSummary, 0)
+	for rows.Next() {
+		var item IDPSummary
+		var startDate time.Time
+		var endDate time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&item.EmployeeID,
+			&item.ManagerID,
+			&item.Title,
+			&item.Goals,
+			&startDate,
+			&endDate,
+			&item.Status,
+			&item.TasksTotal,
+			&item.TasksCompleted,
+			&item.Progress,
+		); err != nil {
+			return nil, err
+		}
+		item.StartDate = startDate.Format(time.DateOnly)
+		item.EndDate = endDate.Format(time.DateOnly)
+		result = append(result, item)
+	}
+
+	return result, rows.Err()
+}
+
+func (s *Service) IsDirectManager(ctx context.Context, managerID, employeeID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM users
+			WHERE id = $1 AND manager_id = $2 AND is_active = true
+		)
+	`, employeeID, managerID).Scan(&exists)
+	return exists, err
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (*User, error) {

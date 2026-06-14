@@ -132,6 +132,57 @@ func (h usersHandler) get(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, user)
 }
 
+func (h usersHandler) subordinates(w http.ResponseWriter, r *http.Request) {
+	claims, ok := accessClaimsFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+
+	result, err := h.service.ListSubordinates(r.Context(), claims.UserID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, result)
+}
+
+func (h usersHandler) idps(w http.ResponseWriter, r *http.Request) {
+	claims, ok := accessClaimsFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+
+	userID := userIDFromIDPsPath(r)
+	allowed, err := h.canReadUserIDPs(r, claims.UserID, claims.Roles, userID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+		return
+	}
+	if !allowed {
+		httpjson.WriteError(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+		return
+	}
+
+	result, err := h.service.ListIDPs(r.Context(), userID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, result)
+}
+
+func (h usersHandler) canReadUserIDPs(r *http.Request, currentUserID string, roles []string, userID string) (bool, error) {
+	if currentUserID == userID || hasRole(roles, "hr_admin") {
+		return true, nil
+	}
+
+	return h.service.IsDirectManager(r.Context(), currentUserID, userID)
+}
+
 func (h usersHandler) update(w http.ResponseWriter, r *http.Request) {
 	var req updateUserRequest
 	if err := httpjson.DecodeJSON(r, &req); err != nil {
@@ -226,6 +277,20 @@ func (h usersHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 
 func userIDFromPath(r *http.Request) string {
 	return strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
+}
+
+func userIDFromIDPsPath(r *http.Request) string {
+	value := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
+	return strings.TrimSuffix(value, "/idps")
+}
+
+func hasRole(roles []string, role string) bool {
+	for _, currentRole := range roles {
+		if currentRole == role {
+			return true
+		}
+	}
+	return false
 }
 
 func validateCreateUser(req createUserRequest) error {
