@@ -118,6 +118,7 @@ button:disabled {
 }
 
 .form-field input,
+.form-field select,
 .password-field input {
   width: 100%;
   min-height: 42px;
@@ -130,6 +131,7 @@ button:disabled {
 }
 
 .form-field input:focus,
+.form-field select:focus,
 .password-field:focus-within {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);

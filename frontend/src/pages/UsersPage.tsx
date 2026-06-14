@@ -25,6 +25,7 @@ const emptyForm = {
   last_name: '',
   middle_name: '',
   position: '',
+  manager_id: '',
   manager: false,
   hr_admin: false,
 };
@@ -40,6 +41,10 @@ export function UsersPage() {
   const [importResult, setImportResult] = useState<ImportUsersResult | null>(null);
 
   const activeCount = useMemo(() => users.filter((user) => user.is_active).length, [users]);
+  const managerOptions = useMemo(
+    () => users.filter((user) => user.is_active && user.roles.includes('manager')),
+    [users],
+  );
 
   async function loadUsers(search = query) {
     setStatus('loading');
@@ -255,6 +260,20 @@ export function UsersPage() {
                 value={form.position}
               />
             </label>
+            <label className="form-field">
+              <span>Руководитель</span>
+              <select
+                onChange={(event) => setFormValue(setForm, 'manager_id', event.target.value)}
+                value={form.manager_id}
+              >
+                <option value="">Не назначен</option>
+                {managerOptions.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {manager.last_name} {manager.first_name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <div className="checkbox-list">
               <label>
@@ -336,6 +355,7 @@ function toPayload(form: UserForm): CreateUserPayload {
     last_name: form.last_name.trim(),
     middle_name: form.middle_name.trim() || undefined,
     position: form.position.trim(),
+    manager_id: form.manager_id || undefined,
     roles,
   };
 }

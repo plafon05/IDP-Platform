@@ -24,6 +24,7 @@ type createUserRequest struct {
 	LastName   string   `json:"last_name"`
 	MiddleName *string  `json:"middle_name"`
 	Position   string   `json:"position"`
+	ManagerID  *string  `json:"manager_id"`
 	Roles      []string `json:"roles"`
 }
 
@@ -32,6 +33,7 @@ type updateUserRequest struct {
 	LastName   string   `json:"last_name"`
 	MiddleName *string  `json:"middle_name"`
 	Position   string   `json:"position"`
+	ManagerID  *string  `json:"manager_id"`
 	IsActive   bool     `json:"is_active"`
 	Roles      []string `json:"roles"`
 }
@@ -86,6 +88,7 @@ func (h usersHandler) create(w http.ResponseWriter, r *http.Request) {
 		LastName:   strings.TrimSpace(req.LastName),
 		MiddleName: emptyStringToNil(req.MiddleName),
 		Position:   strings.TrimSpace(req.Position),
+		ManagerID:  emptyStringToNil(req.ManagerID),
 		Roles:      req.Roles,
 	})
 	if err != nil {
@@ -199,6 +202,7 @@ func (h usersHandler) update(w http.ResponseWriter, r *http.Request) {
 		LastName:   strings.TrimSpace(req.LastName),
 		MiddleName: emptyStringToNil(req.MiddleName),
 		Position:   strings.TrimSpace(req.Position),
+		ManagerID:  emptyStringToNil(req.ManagerID),
 		IsActive:   req.IsActive,
 		Roles:      req.Roles,
 	})

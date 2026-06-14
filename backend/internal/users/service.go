@@ -29,6 +29,7 @@ type User struct {
 	LastName   string   `json:"last_name"`
 	MiddleName *string  `json:"middle_name,omitempty"`
 	Position   string   `json:"position"`
+	ManagerID  *string  `json:"manager_id,omitempty"`
 	IsActive   bool     `json:"is_active"`
 	Roles      []string `json:"roles"`
 }
@@ -72,6 +73,7 @@ type CreateInput struct {
 	LastName   string
 	MiddleName *string
 	Position   string
+	ManagerID  *string
 	Roles      []string
 }
 
@@ -80,6 +82,7 @@ type UpdateInput struct {
 	LastName   string
 	MiddleName *string
 	Position   string
+	ManagerID  *string
 	IsActive   bool
 	Roles      []string
 }
@@ -135,7 +138,7 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 	}
 
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, is_active
+		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, is_active
 		FROM users
 		WHERE $1 = '%%'
 			OR email ILIKE $1
@@ -161,7 +164,7 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.IsActive); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.IsActive); err != nil {
 			return nil, err
 		}
 		user.Roles, err = s.roles(ctx, user.ID)
@@ -177,10 +180,10 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 	var user User
 	err := s.db.QueryRow(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, is_active
+		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, is_active
 		FROM users
 		WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.IsActive)
+	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.IsActive)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -198,7 +201,7 @@ func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 
 func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]User, error) {
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, is_active
+		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, is_active
 		FROM users
 		WHERE manager_id = $1 AND is_active = true
 		ORDER BY last_name, first_name
@@ -211,7 +214,7 @@ func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]Use
 	result := make([]User, 0)
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.IsActive); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.IsActive); err != nil {
 			return nil, err
 		}
 		user.Roles, err = s.roles(ctx, user.ID)
@@ -302,10 +305,10 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*User, error) 
 
 	var userID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO users (email, password_hash, first_name, last_name, middle_name, position)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO users (email, password_hash, first_name, last_name, middle_name, position, manager_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id::text
-	`, strings.TrimSpace(input.Email), passwordHash, input.FirstName, input.LastName, input.MiddleName, input.Position).Scan(&userID)
+	`, strings.TrimSpace(input.Email), passwordHash, input.FirstName, input.LastName, input.MiddleName, input.Position, input.ManagerID).Scan(&userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_email_key") {
 			return nil, ErrEmailExists
@@ -368,10 +371,11 @@ func (s *Service) Update(ctx context.Context, userID string, input UpdateInput) 
 			last_name = $3,
 			middle_name = $4,
 			position = $5,
-			is_active = $6,
+			manager_id = $6,
+			is_active = $7,
 			updated_at = NOW()
 		WHERE id = $1
-	`, userID, input.FirstName, input.LastName, input.MiddleName, input.Position, input.IsActive)
+	`, userID, input.FirstName, input.LastName, input.MiddleName, input.Position, input.ManagerID, input.IsActive)
 	if err != nil {
 		return nil, err
 	}
