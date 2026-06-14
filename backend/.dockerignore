@@ -1,0 +1,9 @@
+.cache/
+bin/
+tmp/
+
+.env
+.DS_Store
+
+*.log
+coverage.out
