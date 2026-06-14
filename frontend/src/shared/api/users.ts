@@ -62,6 +62,11 @@ export async function deactivateUser(userID: string) {
   await api.delete(`/api/v1/users/${userID}`);
 }
 
+export async function activateUser(userID: string) {
+  const response = await api.patch<User>(`/api/v1/users/${userID}/activate`);
+  return response.data;
+}
+
 export async function importUsersCSV(file: File) {
   const formData = new FormData();
   formData.append('file', file);

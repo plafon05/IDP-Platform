@@ -233,6 +233,17 @@ func (h usersHandler) deactivate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h usersHandler) activate(w http.ResponseWriter, r *http.Request) {
+	userID := strings.TrimSuffix(userIDFromPath(r), "/activate")
+	user, err := h.service.Activate(r.Context(), userID)
+	if err != nil {
+		writeUsersError(w, err)
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, user)
+}
+
 func (h usersHandler) updateProfile(w http.ResponseWriter, r *http.Request) {
 	claims, ok := accessClaimsFromContext(r.Context())
 	if !ok {

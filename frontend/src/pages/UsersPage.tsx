@@ -1,7 +1,8 @@
-import { RefreshCw, Search, Upload, UserMinus, UserPlus } from 'lucide-react';
+import { RefreshCw, Search, Upload, UserCheck, UserMinus, UserPlus } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  activateUser,
   createUser,
   deactivateUser,
   importUsersCSV,
@@ -87,6 +88,12 @@ export function UsersPage() {
   }
 
   async function handleDeactivate(userID: string) {
+    const user = users.find((item) => item.id === userID);
+    const name = user ? `${user.last_name} ${user.first_name}` : 'пользователя';
+    if (!window.confirm(`Деактивировать ${name}? Пользователь не сможет войти, но история сохранится.`)) {
+      return;
+    }
+
     setStatus('saving');
     setError(null);
     setNotice(null);
@@ -96,6 +103,20 @@ export function UsersPage() {
       setNotice('Пользователь деактивирован');
     } catch {
       setError('Не удалось деактивировать пользователя');
+      setStatus('idle');
+    }
+  }
+
+  async function handleActivate(userID: string) {
+    setStatus('saving');
+    setError(null);
+    setNotice(null);
+    try {
+      await activateUser(userID);
+      await loadUsers(query);
+      setNotice('Пользователь восстановлен');
+    } catch {
+      setError('Не удалось восстановить пользователя');
       setStatus('idle');
     }
   }
@@ -203,15 +224,29 @@ export function UsersPage() {
                 <span className={`status-pill ${user.is_active ? 'online' : 'offline'}`}>
                   {user.is_active ? 'Активен' : 'Отключен'}
                 </span>
-                <button
-                  className="icon-button danger"
-                  disabled={!user.is_active || status === 'saving'}
-                  onClick={() => void handleDeactivate(user.id)}
-                  type="button"
-                  aria-label="Деактивировать"
-                >
-                  <UserMinus size={18} />
-                </button>
+                {user.is_active ? (
+                  <button
+                    className="icon-button danger"
+                    disabled={status === 'saving'}
+                    onClick={() => void handleDeactivate(user.id)}
+                    title="Деактивировать"
+                    type="button"
+                    aria-label="Деактивировать"
+                  >
+                    <UserMinus size={18} />
+                  </button>
+                ) : (
+                  <button
+                    className="icon-button success"
+                    disabled={status === 'saving'}
+                    onClick={() => void handleActivate(user.id)}
+                    title="Восстановить"
+                    type="button"
+                    aria-label="Восстановить"
+                  >
+                    <UserCheck size={18} />
+                  </button>
+                )}
               </article>
             ))}
           </div>
@@ -279,7 +314,7 @@ export function UsersPage() {
               />
             </label>
             <label className="form-field">
-              <span>Руководитель</span>
+              <span>Непосредственный руководитель</span>
               <select
                 onChange={(event) => setFormValue(setForm, 'manager_id', event.target.value)}
                 value={form.manager_id}
@@ -300,7 +335,7 @@ export function UsersPage() {
                   onChange={(event) => setFormValue(setForm, 'manager', event.target.checked)}
                   type="checkbox"
                 />
-                Руководитель
+                Роль: руководитель
               </label>
               <label>
                 <input

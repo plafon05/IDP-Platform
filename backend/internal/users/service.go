@@ -481,6 +481,25 @@ func (s *Service) Deactivate(ctx context.Context, userID string) error {
 	return nil
 }
 
+func (s *Service) Activate(ctx context.Context, userID string) (*User, error) {
+	tag, err := s.db.Exec(ctx, `
+		UPDATE users
+		SET is_active = true,
+			failed_login_attempts = 0,
+			locked_until = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	return s.Get(ctx, userID)
+}
+
 func (s *Service) roles(ctx context.Context, userID string) ([]string, error) {
 	rows, err := s.db.Query(ctx, `
 		SELECT role
