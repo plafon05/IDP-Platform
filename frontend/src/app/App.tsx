@@ -1,13 +1,24 @@
-import { Bell, BookOpenCheck, ChartNoAxesCombined, LayoutDashboard, LogOut, Search, Settings, Users } from 'lucide-react';
+import {
+  Bell,
+  BookOpenCheck,
+  ChartNoAxesCombined,
+  LayoutDashboard,
+  LibraryBig,
+  LogOut,
+  Search,
+  Settings,
+  Users,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
+import { CatalogPage } from '../pages/CatalogPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { UsersPage } from '../pages/UsersPage';
 
-type Section = 'dashboard' | 'users' | 'profile';
+type Section = 'dashboard' | 'users' | 'catalog' | 'profile';
 type NavItem = {
   id: Exclude<Section, 'profile'> | 'plans' | 'analytics' | 'settings';
   icon: typeof LayoutDashboard;
@@ -32,6 +43,7 @@ export function App() {
 
     if (user?.roles.includes('hr_admin')) {
       items.splice(1, 0, { id: 'users' as const, icon: Users, label: 'Пользователи' });
+      items.splice(2, 0, { id: 'catalog' as const, icon: LibraryBig, label: 'Справочники' });
     }
 
     return items;
@@ -61,11 +73,13 @@ export function App() {
   const pageTitle = {
     dashboard: 'Индивидуальные планы развития',
     users: 'Управление пользователями',
+    catalog: 'Справочники развития',
     profile: 'Профиль пользователя',
   }[section];
   const breadcrumb = {
     dashboard: 'Главная / Дашборд',
     users: 'Главная / Пользователи',
+    catalog: 'Главная / Справочники',
     profile: 'Главная / Профиль',
   }[section];
 
@@ -87,7 +101,7 @@ export function App() {
               disabled={item.disabled}
               key={item.label}
               onClick={() => {
-                if (item.id === 'dashboard' || item.id === 'users') {
+                if (item.id === 'dashboard' || item.id === 'users' || item.id === 'catalog') {
                   setSection(item.id);
                 }
               }}
@@ -133,6 +147,7 @@ export function App() {
         <main>
           {section === 'profile' && <ProfilePage />}
           {section === 'users' && <UsersPage />}
+          {section === 'catalog' && <CatalogPage />}
           {section === 'dashboard' && <DashboardPage />}
         </main>
       </div>
