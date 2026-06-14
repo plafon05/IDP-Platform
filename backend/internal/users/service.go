@@ -76,6 +76,22 @@ type UpdateProfileInput struct {
 	Position   string
 }
 
+type ImportInput struct {
+	Rows []CreateInput
+}
+
+type ImportResult struct {
+	Created int              `json:"created"`
+	Failed  int              `json:"failed"`
+	Errors  []ImportRowError `json:"errors"`
+}
+
+type ImportRowError struct {
+	Row     int    `json:"row"`
+	Email   string `json:"email,omitempty"`
+	Message string `json:"message"`
+}
+
 func NewService(db *pgxpool.Pool) *Service {
 	return &Service{db: db}
 }
@@ -198,6 +214,38 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*User, error) 
 	}
 
 	return s.Get(ctx, userID)
+}
+
+func (s *Service) Import(ctx context.Context, input ImportInput) ImportResult {
+	result := ImportResult{Errors: make([]ImportRowError, 0)}
+
+	for index, row := range input.Rows {
+		rowNumber := index + 2
+		if _, err := s.Create(ctx, row); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, ImportRowError{
+				Row:     rowNumber,
+				Email:   strings.TrimSpace(row.Email),
+				Message: importErrorMessage(err),
+			})
+			continue
+		}
+
+		result.Created++
+	}
+
+	return result
+}
+
+func importErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, ErrEmailExists):
+		return "email already exists"
+	case errors.Is(err, auth.ErrWeakPassword):
+		return auth.ErrWeakPassword.Error()
+	default:
+		return "user was not created"
+	}
 }
 
 func (s *Service) Update(ctx context.Context, userID string, input UpdateInput) (*User, error) {

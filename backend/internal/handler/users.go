@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/csv"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,6 +47,8 @@ type changePasswordRequest struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
 }
+
+const maxCSVImportSize = 2 << 20
 
 func (h usersHandler) list(w http.ResponseWriter, r *http.Request) {
 	page := intQuery(r, "page", 1)
@@ -90,6 +94,32 @@ func (h usersHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpjson.WriteJSON(w, http.StatusCreated, user)
+}
+
+func (h usersHandler) importCSV(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(maxCSVImportSize); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "CSV file is required")
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "CSV file is required")
+		return
+	}
+	defer file.Close()
+
+	rows, rowErrors, err := parseUsersCSV(io.LimitReader(file, maxCSVImportSize))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_CSV", err.Error())
+		return
+	}
+
+	result := h.service.Import(r.Context(), users.ImportInput{Rows: rows})
+	result.Failed += len(rowErrors)
+	result.Errors = append(rowErrors, result.Errors...)
+
+	httpjson.WriteJSON(w, http.StatusOK, result)
 }
 
 func (h usersHandler) get(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +247,77 @@ func validateCreateUser(req createUserRequest) error {
 	return nil
 }
 
+func parseUsersCSV(reader io.Reader) ([]users.CreateInput, []users.ImportRowError, error) {
+	csvReader := csv.NewReader(reader)
+	csvReader.TrimLeadingSpace = true
+
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		return nil, nil, errors.New("invalid CSV format")
+	}
+	if len(records) < 2 {
+		return nil, nil, errors.New("CSV must include header and at least one user row")
+	}
+	if !validUsersCSVHeader(records[0]) {
+		return nil, nil, errors.New("CSV header must be email,password,first_name,last_name,middle_name,position,roles")
+	}
+
+	rows := make([]users.CreateInput, 0, len(records)-1)
+	rowErrors := make([]users.ImportRowError, 0)
+	for index, record := range records[1:] {
+		rowNumber := index + 2
+		if len(record) != 7 {
+			rowErrors = append(rowErrors, users.ImportRowError{Row: rowNumber, Message: "row must include 7 columns"})
+			continue
+		}
+
+		input := users.CreateInput{
+			Email:      strings.TrimSpace(record[0]),
+			Password:   record[1],
+			FirstName:  strings.TrimSpace(record[2]),
+			LastName:   strings.TrimSpace(record[3]),
+			MiddleName: stringToNil(record[4]),
+			Position:   strings.TrimSpace(record[5]),
+			Roles:      parseCSVRoles(record[6]),
+		}
+
+		if err := validateCreateUser(createUserRequest{
+			Email:     input.Email,
+			Password:  input.Password,
+			FirstName: input.FirstName,
+			LastName:  input.LastName,
+			Position:  input.Position,
+		}); err != nil {
+			rowErrors = append(rowErrors, users.ImportRowError{Row: rowNumber, Email: input.Email, Message: err.Error()})
+			continue
+		}
+
+		rows = append(rows, input)
+	}
+
+	return rows, rowErrors, nil
+}
+
+func validUsersCSVHeader(header []string) bool {
+	expected := []string{"email", "password", "first_name", "last_name", "middle_name", "position", "roles"}
+	if len(header) != len(expected) {
+		return false
+	}
+	for index, column := range header {
+		if strings.TrimSpace(column) != expected[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func parseCSVRoles(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return strings.Split(value, "|")
+}
+
 func validateUpdateUser(req updateUserRequest) error {
 	return validateUpdateProfile(updateProfileRequest{
 		FirstName:  req.FirstName,
@@ -267,6 +368,14 @@ func emptyStringToNil(value *string) *string {
 		return nil
 	}
 	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func stringToNil(value string) *string {
+	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return nil
 	}
