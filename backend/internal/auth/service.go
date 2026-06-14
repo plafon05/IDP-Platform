@@ -24,6 +24,7 @@ var (
 	ErrUserLocked         = errors.New("user account is temporarily locked")
 	ErrInvalidToken       = errors.New("invalid refresh token")
 	ErrInvalidResetToken  = errors.New("invalid password reset token")
+	ErrSamePassword       = errors.New("new password must be different from current password")
 )
 
 type Service struct {
@@ -183,19 +184,26 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	defer tx.Rollback(ctx)
 
 	var userID string
+	var currentPasswordHash string
 	err = tx.QueryRow(ctx, `
-		SELECT user_id::text
-		FROM password_reset_tokens
-		WHERE token_hash = $1
-			AND used_at IS NULL
-			AND expires_at > NOW()
+		SELECT prt.user_id::text, u.password_hash
+		FROM password_reset_tokens prt
+		JOIN users u ON u.id = prt.user_id
+		WHERE prt.token_hash = $1
+			AND prt.used_at IS NULL
+			AND prt.expires_at > NOW()
+			AND u.is_active = true
 		FOR UPDATE
-	`, tokenHash).Scan(&userID)
+	`, tokenHash).Scan(&userID, &currentPasswordHash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrInvalidResetToken
 		}
 		return err
+	}
+
+	if ComparePassword(currentPasswordHash, newPassword) {
+		return ErrSamePassword
 	}
 
 	if _, err := tx.Exec(ctx, `

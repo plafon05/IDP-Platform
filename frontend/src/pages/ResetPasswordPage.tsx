@@ -1,4 +1,5 @@
 import { KeyRound, Mail } from 'lucide-react';
+import axios from 'axios';
 import { FormEvent, useMemo, useState } from 'react';
 import { forgotPassword, resetPassword, type ForgotPasswordResponse } from '../shared/api/auth';
 
@@ -31,8 +32,8 @@ export function ResetPasswordPage() {
     try {
       await resetPassword(token, newPassword);
       setStatus('done');
-    } catch {
-      setError('Не удалось сменить пароль');
+    } catch (err) {
+      setError(resetErrorMessage(err));
       setStatus('idle');
     }
   }
@@ -64,11 +65,18 @@ export function ResetPasswordPage() {
               />
             </label>
             {error && <div className="form-error">{error}</div>}
-            {status === 'done' && <div className="form-success">Пароль изменён</div>}
-            <button className="primary-button" disabled={status === 'saving'} type="submit">
-              <KeyRound size={18} />
-              Сменить пароль
-            </button>
+            {status === 'done' && (
+              <div className="form-success">
+                Пароль изменён
+                <a href="/">Перейти ко входу</a>
+              </div>
+            )}
+            {status !== 'done' && (
+              <button className="primary-button" disabled={status === 'saving'} type="submit">
+                <KeyRound size={18} />
+                Сменить пароль
+              </button>
+            )}
           </form>
         ) : (
           <form className="login-form" onSubmit={handleForgot}>
@@ -104,4 +112,21 @@ export function ResetPasswordPage() {
       </section>
     </main>
   );
+}
+
+function resetErrorMessage(err: unknown) {
+  if (axios.isAxiosError(err)) {
+    const code = err.response?.data?.error?.code;
+    if (code === 'SAME_PASSWORD') {
+      return 'Новый пароль должен отличаться от старого';
+    }
+    if (code === 'WEAK_PASSWORD') {
+      return 'Пароль должен быть не короче 8 символов, с заглавной буквой и цифрой';
+    }
+    if (code === 'INVALID_RESET_TOKEN') {
+      return 'Ссылка недействительна или устарела';
+    }
+  }
+
+  return 'Не удалось сменить пароль';
 }

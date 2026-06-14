@@ -181,6 +181,8 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_RESET_TOKEN", "Invalid or expired reset token")
 	case errors.Is(err, auth.ErrWeakPassword):
 		httpjson.WriteError(w, http.StatusBadRequest, "WEAK_PASSWORD", auth.ErrWeakPassword.Error())
+	case errors.Is(err, auth.ErrSamePassword):
+		httpjson.WriteError(w, http.StatusBadRequest, "SAME_PASSWORD", "New password must be different from current password")
 	default:
 		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
 	}

@@ -22,6 +22,7 @@ export function ProfilePage() {
   const [passwordStatus, setPasswordStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [avatarStatus, setAvatarStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -40,6 +41,7 @@ export function ProfilePage() {
     event.preventDefault();
     setProfileStatus('saving');
     setError(null);
+    setNotice(null);
 
     try {
       const updatedUser = await updateProfile({
@@ -50,6 +52,7 @@ export function ProfilePage() {
       });
       setUser(updatedUser);
       setProfileStatus('saved');
+      setNotice('Профиль сохранён');
     } catch {
       setError('Не удалось сохранить профиль');
       setProfileStatus('idle');
@@ -60,11 +63,13 @@ export function ProfilePage() {
     event.preventDefault();
     setPasswordStatus('saving');
     setError(null);
+    setNotice(null);
 
     try {
       await changePassword(passwords);
       setPasswords(emptyPasswordForm);
       setPasswordStatus('saved');
+      setNotice('Пароль изменён');
     } catch {
       setError('Не удалось сменить пароль');
       setPasswordStatus('idle');
@@ -82,10 +87,12 @@ export function ProfilePage() {
 
     setAvatarStatus('saving');
     setError(null);
+    setNotice(null);
     try {
       const updatedUser = await updateAvatar(file);
       setUser(updatedUser);
       setAvatarStatus('saved');
+      setNotice('Аватар загружен');
       event.currentTarget.reset();
     } catch {
       setError('Не удалось загрузить аватар');
@@ -110,6 +117,7 @@ export function ProfilePage() {
       </section>
 
       {error && <div className="form-error">{error}</div>}
+      {notice && <div className="form-success">{notice}</div>}
 
       <section className="profile-layout">
         <form className="panel profile-form" onSubmit={handleAvatarSubmit}>

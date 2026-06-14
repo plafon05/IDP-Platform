@@ -38,6 +38,7 @@ export function UsersPage() {
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [status, setStatus] = useState<'idle' | 'loading' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportUsersResult | null>(null);
 
   const activeCount = useMemo(() => users.filter((user) => user.is_active).length, [users]);
@@ -72,10 +73,12 @@ export function UsersPage() {
     event.preventDefault();
     setStatus('saving');
     setError(null);
+    setNotice(null);
     try {
       await createUser(toPayload(form));
       setForm(emptyForm);
       await loadUsers(query);
+      setNotice('Пользователь создан');
     } catch {
       setError('Не удалось создать пользователя');
     } finally {
@@ -86,9 +89,11 @@ export function UsersPage() {
   async function handleDeactivate(userID: string) {
     setStatus('saving');
     setError(null);
+    setNotice(null);
     try {
       await deactivateUser(userID);
       await loadUsers(query);
+      setNotice('Пользователь деактивирован');
     } catch {
       setError('Не удалось деактивировать пользователя');
       setStatus('idle');
@@ -106,12 +111,20 @@ export function UsersPage() {
 
     setStatus('saving');
     setError(null);
+    setNotice(null);
     setImportResult(null);
     try {
       const result = await importUsersCSV(file);
       setImportResult(result);
-      await loadUsers(query);
       event.currentTarget.reset();
+      try {
+        const usersResult = await listUsers(query);
+        setUsers(usersResult.data);
+      } catch {
+        setNotice('CSV импортирован, но список не обновился автоматически');
+        return;
+      }
+      setNotice('CSV импортирован');
     } catch {
       setError('Не удалось импортировать CSV');
     } finally {
@@ -161,12 +174,17 @@ export function UsersPage() {
           </form>
 
           {error && <div className="form-error">{error}</div>}
+          {notice && <div className="form-success">{notice}</div>}
 
           <div className="users-table" aria-busy={status === 'loading'}>
             {users.map((user) => (
               <article className="user-row" key={user.id}>
                 <div className="person">
-                  <div className="person-avatar">{initials(user)}</div>
+                  {user.avatar_url ? (
+                    <img className="person-avatar image" src={user.avatar_url} alt="" />
+                  ) : (
+                    <div className="person-avatar">{initials(user)}</div>
+                  )}
                   <div>
                     <strong>
                       {user.last_name} {user.first_name}
