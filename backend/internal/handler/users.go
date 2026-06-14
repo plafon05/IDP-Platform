@@ -49,7 +49,6 @@ type updateProfileRequest struct {
 	FirstName  string  `json:"first_name"`
 	LastName   string  `json:"last_name"`
 	MiddleName *string `json:"middle_name"`
-	Position   string  `json:"position"`
 }
 
 type changePasswordRequest struct {
@@ -265,7 +264,6 @@ func (h usersHandler) updateProfile(w http.ResponseWriter, r *http.Request) {
 		FirstName:  strings.TrimSpace(req.FirstName),
 		LastName:   strings.TrimSpace(req.LastName),
 		MiddleName: emptyStringToNil(req.MiddleName),
-		Position:   strings.TrimSpace(req.Position),
 	})
 	if err != nil {
 		writeUsersError(w, err)
@@ -483,7 +481,6 @@ func validateUpdateUser(req updateUserRequest) error {
 		FirstName:  req.FirstName,
 		LastName:   req.LastName,
 		MiddleName: req.MiddleName,
-		Position:   req.Position,
 	})
 }
 
@@ -493,9 +490,6 @@ func validateUpdateProfile(req updateProfileRequest) error {
 	}
 	if strings.TrimSpace(req.LastName) == "" {
 		return errors.New("last_name is required")
-	}
-	if strings.TrimSpace(req.Position) == "" {
-		return errors.New("position is required")
 	}
 	return nil
 }

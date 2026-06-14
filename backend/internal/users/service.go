@@ -92,7 +92,6 @@ type UpdateProfileInput struct {
 	FirstName  string
 	LastName   string
 	MiddleName *string
-	Position   string
 }
 
 type ImportInput struct {
@@ -400,10 +399,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, input Update
 		SET first_name = $2,
 			last_name = $3,
 			middle_name = $4,
-			position = $5,
 			updated_at = NOW()
 		WHERE id = $1 AND is_active = true
-	`, userID, input.FirstName, input.LastName, input.MiddleName, input.Position)
+	`, userID, input.FirstName, input.LastName, input.MiddleName)
 	if err != nil {
 		return nil, err
 	}

@@ -36,6 +36,16 @@ export type CreateUserPayload = {
   roles: UserRole[];
 };
 
+export type UpdateUserPayload = {
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  position: string;
+  manager_id?: string;
+  is_active: boolean;
+  roles: UserRole[];
+};
+
 export type ImportUsersResult = {
   created: number;
   failed: number;
@@ -60,6 +70,11 @@ export async function createUser(payload: CreateUserPayload) {
 
 export async function deactivateUser(userID: string) {
   await api.delete(`/api/v1/users/${userID}`);
+}
+
+export async function updateUser(userID: string, payload: UpdateUserPayload) {
+  const response = await api.put<User>(`/api/v1/users/${userID}`, payload);
+  return response.data;
 }
 
 export async function activateUser(userID: string) {

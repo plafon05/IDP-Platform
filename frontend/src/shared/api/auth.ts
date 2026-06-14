@@ -21,7 +21,6 @@ export type UpdateProfilePayload = {
   first_name: string;
   last_name: string;
   middle_name?: string;
-  position: string;
 };
 
 export type ChangePasswordPayload = {

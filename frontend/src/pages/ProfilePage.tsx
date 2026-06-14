@@ -15,7 +15,6 @@ export function ProfilePage() {
     first_name: '',
     last_name: '',
     middle_name: '',
-    position: '',
   });
   const [passwords, setPasswords] = useState(emptyPasswordForm);
   const [profileStatus, setProfileStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -33,7 +32,6 @@ export function ProfilePage() {
       first_name: user.first_name,
       last_name: user.last_name,
       middle_name: user.middle_name ?? '',
-      position: user.position,
     });
   }, [user]);
 
@@ -48,7 +46,6 @@ export function ProfilePage() {
         first_name: profile.first_name.trim(),
         last_name: profile.last_name.trim(),
         middle_name: profile.middle_name.trim() || undefined,
-        position: profile.position.trim(),
       });
       setUser(updatedUser);
       setProfileStatus('saved');
@@ -182,11 +179,7 @@ export function ProfilePage() {
 
           <label className="form-field">
             <span>Должность</span>
-            <input
-              onChange={(event) => setProfile((current) => ({ ...current, position: event.target.value }))}
-              required
-              value={profile.position}
-            />
+            <input readOnly value={user?.position ?? ''} />
           </label>
 
           <button className="primary-button" disabled={profileStatus === 'saving'} type="submit">

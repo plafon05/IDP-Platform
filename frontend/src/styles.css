@@ -141,6 +141,11 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
+.form-field input:read-only {
+  color: #64748b;
+  background: #f8fafc;
+}
+
 .password-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 42px;
@@ -610,12 +615,22 @@ main {
 
 .user-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.8fr) minmax(180px, 1fr) auto 40px;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.8fr) minmax(180px, 1fr) auto auto;
   gap: 14px;
   align-items: center;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 12px;
+}
+
+.row-actions,
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.button-row {
+  align-items: center;
 }
 
 .user-row > span {

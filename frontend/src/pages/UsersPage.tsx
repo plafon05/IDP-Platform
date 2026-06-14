@@ -1,4 +1,4 @@
-import { RefreshCw, Search, Upload, UserCheck, UserMinus, UserPlus } from 'lucide-react';
+import { Edit3, RefreshCw, Search, Upload, UserCheck, UserMinus, UserPlus } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
   type ImportUsersResult,
   type User,
   type UserRole,
+  updateUser,
 } from '../shared/api/users';
 
 const roleLabels: Record<UserRole, string> = {
@@ -37,6 +38,9 @@ export function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<UserForm>(emptyForm);
+  const [editingUserID, setEditingUserID] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<UserForm>(emptyForm);
+  const [editIsActive, setEditIsActive] = useState(true);
   const [status, setStatus] = useState<'idle' | 'loading' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -117,6 +121,54 @@ export function UsersPage() {
       setNotice('Пользователь восстановлен');
     } catch {
       setError('Не удалось восстановить пользователя');
+      setStatus('idle');
+    }
+  }
+
+  function startEdit(user: User) {
+    setEditingUserID(user.id);
+    setEditIsActive(user.is_active);
+    setEditForm({
+      email: user.email,
+      password: '',
+      first_name: user.first_name,
+      last_name: user.last_name,
+      middle_name: user.middle_name ?? '',
+      position: user.position,
+      manager_id: user.manager_id ?? '',
+      manager: user.roles.includes('manager'),
+      hr_admin: user.roles.includes('hr_admin'),
+    });
+    setError(null);
+    setNotice(null);
+  }
+
+  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingUserID) {
+      return;
+    }
+
+    setStatus('saving');
+    setError(null);
+    setNotice(null);
+    try {
+      await updateUser(editingUserID, {
+        first_name: editForm.first_name.trim(),
+        last_name: editForm.last_name.trim(),
+        middle_name: editForm.middle_name.trim() || undefined,
+        position: editForm.position.trim(),
+        manager_id: editForm.manager_id || undefined,
+        is_active: editIsActive,
+        roles: rolesFromForm(editForm),
+      });
+      setEditingUserID(null);
+      setEditForm(emptyForm);
+      await loadUsers(query);
+      setNotice('Пользователь обновлён');
+    } catch {
+      setError('Не удалось обновить пользователя');
+    } finally {
       setStatus('idle');
     }
   }
@@ -224,35 +276,149 @@ export function UsersPage() {
                 <span className={`status-pill ${user.is_active ? 'online' : 'offline'}`}>
                   {user.is_active ? 'Активен' : 'Отключен'}
                 </span>
-                {user.is_active ? (
+                <div className="row-actions">
                   <button
-                    className="icon-button danger"
+                    className="icon-button"
                     disabled={status === 'saving'}
-                    onClick={() => void handleDeactivate(user.id)}
-                    title="Деактивировать"
+                    onClick={() => startEdit(user)}
+                    title="Редактировать"
                     type="button"
-                    aria-label="Деактивировать"
+                    aria-label="Редактировать"
                   >
-                    <UserMinus size={18} />
+                    <Edit3 size={18} />
                   </button>
-                ) : (
-                  <button
-                    className="icon-button success"
-                    disabled={status === 'saving'}
-                    onClick={() => void handleActivate(user.id)}
-                    title="Восстановить"
-                    type="button"
-                    aria-label="Восстановить"
-                  >
-                    <UserCheck size={18} />
-                  </button>
-                )}
+                  {user.is_active ? (
+                    <button
+                      className="icon-button danger"
+                      disabled={status === 'saving'}
+                      onClick={() => void handleDeactivate(user.id)}
+                      title="Деактивировать"
+                      type="button"
+                      aria-label="Деактивировать"
+                    >
+                      <UserMinus size={18} />
+                    </button>
+                  ) : (
+                    <button
+                      className="icon-button success"
+                      disabled={status === 'saving'}
+                      onClick={() => void handleActivate(user.id)}
+                      title="Восстановить"
+                      type="button"
+                      aria-label="Восстановить"
+                    >
+                      <UserCheck size={18} />
+                    </button>
+                  )}
+                </div>
               </article>
             ))}
           </div>
         </div>
 
         <div className="side-stack">
+          {editingUserID && (
+            <form className="panel user-form" onSubmit={handleUpdate}>
+              <div className="panel-header">
+                <div>
+                  <h2>Редактирование</h2>
+                  <p>Рабочие данные изменяет HR</p>
+                </div>
+                <Edit3 size={20} aria-hidden="true" />
+              </div>
+
+              <label className="form-field">
+                <span>Email</span>
+                <input readOnly value={editForm.email} />
+              </label>
+              <div className="form-grid">
+                <label className="form-field">
+                  <span>Имя</span>
+                  <input
+                    onChange={(event) => setFormValue(setEditForm, 'first_name', event.target.value)}
+                    required
+                    value={editForm.first_name}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Фамилия</span>
+                  <input
+                    onChange={(event) => setFormValue(setEditForm, 'last_name', event.target.value)}
+                    required
+                    value={editForm.last_name}
+                  />
+                </label>
+              </div>
+              <label className="form-field">
+                <span>Отчество</span>
+                <input
+                  onChange={(event) => setFormValue(setEditForm, 'middle_name', event.target.value)}
+                  value={editForm.middle_name}
+                />
+              </label>
+              <label className="form-field">
+                <span>Должность</span>
+                <input
+                  onChange={(event) => setFormValue(setEditForm, 'position', event.target.value)}
+                  required
+                  value={editForm.position}
+                />
+              </label>
+              <label className="form-field">
+                <span>Непосредственный руководитель</span>
+                <select
+                  onChange={(event) => setFormValue(setEditForm, 'manager_id', event.target.value)}
+                  value={editForm.manager_id}
+                >
+                  <option value="">Не назначен</option>
+                  {managerOptions
+                    .filter((manager) => manager.id !== editingUserID)
+                    .map((manager) => (
+                      <option key={manager.id} value={manager.id}>
+                        {manager.last_name} {manager.first_name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <div className="checkbox-list">
+                <label>
+                  <input
+                    checked={editForm.manager}
+                    onChange={(event) => setFormValue(setEditForm, 'manager', event.target.checked)}
+                    type="checkbox"
+                  />
+                  Роль: руководитель
+                </label>
+                <label>
+                  <input
+                    checked={editForm.hr_admin}
+                    onChange={(event) => setFormValue(setEditForm, 'hr_admin', event.target.checked)}
+                    type="checkbox"
+                  />
+                  HR
+                </label>
+                <label>
+                  <input
+                    checked={editIsActive}
+                    onChange={(event) => setEditIsActive(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Активен
+                </label>
+              </div>
+
+              <div className="button-row">
+                <button className="primary-button" disabled={status === 'saving'} type="submit">
+                  Сохранить
+                </button>
+                <button className="secondary-button" onClick={() => setEditingUserID(null)} type="button">
+                  Отмена
+                </button>
+              </div>
+            </form>
+          )}
+
           <form className="panel user-form" onSubmit={handleCreate}>
             <div className="panel-header">
               <div>
@@ -393,14 +559,6 @@ export function UsersPage() {
 }
 
 function toPayload(form: UserForm): CreateUserPayload {
-  const roles: UserRole[] = ['employee'];
-  if (form.manager) {
-    roles.push('manager');
-  }
-  if (form.hr_admin) {
-    roles.push('hr_admin');
-  }
-
   return {
     email: form.email.trim(),
     password: form.password,
@@ -409,8 +567,20 @@ function toPayload(form: UserForm): CreateUserPayload {
     middle_name: form.middle_name.trim() || undefined,
     position: form.position.trim(),
     manager_id: form.manager_id || undefined,
-    roles,
+    roles: rolesFromForm(form),
   };
+}
+
+function rolesFromForm(form: UserForm): UserRole[] {
+  const roles: UserRole[] = ['employee'];
+  if (form.manager) {
+    roles.push('manager');
+  }
+  if (form.hr_admin) {
+    roles.push('hr_admin');
+  }
+
+  return roles;
 }
 
 function setFormValue<T extends keyof UserForm>(
