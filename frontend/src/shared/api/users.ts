@@ -33,6 +33,16 @@ export type CreateUserPayload = {
   roles: UserRole[];
 };
 
+export type ImportUsersResult = {
+  created: number;
+  failed: number;
+  errors: Array<{
+    row: number;
+    email?: string;
+    message: string;
+  }>;
+};
+
 export async function listUsers(query = '') {
   const response = await api.get<UsersListResponse>('/api/v1/users', {
     params: { q: query, page: 1, limit: 50 },
@@ -47,4 +57,14 @@ export async function createUser(payload: CreateUserPayload) {
 
 export async function deactivateUser(userID: string) {
   await api.delete(`/api/v1/users/${userID}`);
+}
+
+export async function importUsersCSV(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await api.post<ImportUsersResult>('/api/v1/users/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
 }

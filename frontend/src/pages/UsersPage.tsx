@@ -1,11 +1,13 @@
-import { RefreshCw, Search, UserMinus, UserPlus } from 'lucide-react';
+import { RefreshCw, Search, Upload, UserMinus, UserPlus } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   createUser,
   deactivateUser,
+  importUsersCSV,
   listUsers,
   type CreateUserPayload,
+  type ImportUsersResult,
   type User,
   type UserRole,
 } from '../shared/api/users';
@@ -35,6 +37,7 @@ export function UsersPage() {
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [status, setStatus] = useState<'idle' | 'loading' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<ImportUsersResult | null>(null);
 
   const activeCount = useMemo(() => users.filter((user) => user.is_active).length, [users]);
 
@@ -83,6 +86,30 @@ export function UsersPage() {
       await loadUsers(query);
     } catch {
       setError('Не удалось деактивировать пользователя');
+      setStatus('idle');
+    }
+  }
+
+  async function handleImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const file = formData.get('file');
+    if (!(file instanceof File) || file.size === 0) {
+      setError('Выберите CSV-файл');
+      return;
+    }
+
+    setStatus('saving');
+    setError(null);
+    setImportResult(null);
+    try {
+      const result = await importUsersCSV(file);
+      setImportResult(result);
+      await loadUsers(query);
+      event.currentTarget.reset();
+    } catch {
+      setError('Не удалось импортировать CSV');
+    } finally {
       setStatus('idle');
     }
   }
@@ -167,91 +194,127 @@ export function UsersPage() {
           </div>
         </div>
 
-        <form className="panel user-form" onSubmit={handleCreate}>
-          <div className="panel-header">
-            <div>
-              <h2>Новый пользователь</h2>
-              <p>Сотрудник получит роль employee автоматически</p>
+        <div className="side-stack">
+          <form className="panel user-form" onSubmit={handleCreate}>
+            <div className="panel-header">
+              <div>
+                <h2>Новый пользователь</h2>
+                <p>Сотрудник получит роль employee автоматически</p>
+              </div>
+              <UserPlus size={20} aria-hidden="true" />
             </div>
-            <UserPlus size={20} aria-hidden="true" />
-          </div>
 
-          <label className="form-field">
-            <span>Email</span>
-            <input
-              onChange={(event) => setFormValue(setForm, 'email', event.target.value)}
-              required
-              type="email"
-              value={form.email}
-            />
-          </label>
-          <label className="form-field">
-            <span>Пароль</span>
-            <input
-              onChange={(event) => setFormValue(setForm, 'password', event.target.value)}
-              required
-              type="password"
-              value={form.password}
-            />
-          </label>
-          <div className="form-grid">
             <label className="form-field">
-              <span>Имя</span>
+              <span>Email</span>
               <input
-                onChange={(event) => setFormValue(setForm, 'first_name', event.target.value)}
+                onChange={(event) => setFormValue(setForm, 'email', event.target.value)}
                 required
-                value={form.first_name}
+                type="email"
+                value={form.email}
               />
             </label>
             <label className="form-field">
-              <span>Фамилия</span>
+              <span>Пароль</span>
               <input
-                onChange={(event) => setFormValue(setForm, 'last_name', event.target.value)}
+                onChange={(event) => setFormValue(setForm, 'password', event.target.value)}
                 required
-                value={form.last_name}
+                type="password"
+                value={form.password}
               />
             </label>
-          </div>
-          <label className="form-field">
-            <span>Отчество</span>
-            <input
-              onChange={(event) => setFormValue(setForm, 'middle_name', event.target.value)}
-              value={form.middle_name}
-            />
-          </label>
-          <label className="form-field">
-            <span>Должность</span>
-            <input
-              onChange={(event) => setFormValue(setForm, 'position', event.target.value)}
-              required
-              value={form.position}
-            />
-          </label>
-
-          <div className="checkbox-list">
-            <label>
+            <div className="form-grid">
+              <label className="form-field">
+                <span>Имя</span>
+                <input
+                  onChange={(event) => setFormValue(setForm, 'first_name', event.target.value)}
+                  required
+                  value={form.first_name}
+                />
+              </label>
+              <label className="form-field">
+                <span>Фамилия</span>
+                <input
+                  onChange={(event) => setFormValue(setForm, 'last_name', event.target.value)}
+                  required
+                  value={form.last_name}
+                />
+              </label>
+            </div>
+            <label className="form-field">
+              <span>Отчество</span>
               <input
-                checked={form.manager}
-                onChange={(event) => setFormValue(setForm, 'manager', event.target.checked)}
-                type="checkbox"
+                onChange={(event) => setFormValue(setForm, 'middle_name', event.target.value)}
+                value={form.middle_name}
               />
-              Руководитель
             </label>
-            <label>
+            <label className="form-field">
+              <span>Должность</span>
               <input
-                checked={form.hr_admin}
-                onChange={(event) => setFormValue(setForm, 'hr_admin', event.target.checked)}
-                type="checkbox"
+                onChange={(event) => setFormValue(setForm, 'position', event.target.value)}
+                required
+                value={form.position}
               />
-              HR
             </label>
-          </div>
 
-          <button className="primary-button" disabled={status === 'saving'} type="submit">
-            <UserPlus size={18} />
-            Создать
-          </button>
-        </form>
+            <div className="checkbox-list">
+              <label>
+                <input
+                  checked={form.manager}
+                  onChange={(event) => setFormValue(setForm, 'manager', event.target.checked)}
+                  type="checkbox"
+                />
+                Руководитель
+              </label>
+              <label>
+                <input
+                  checked={form.hr_admin}
+                  onChange={(event) => setFormValue(setForm, 'hr_admin', event.target.checked)}
+                  type="checkbox"
+                />
+                HR
+              </label>
+            </div>
+
+            <button className="primary-button" disabled={status === 'saving'} type="submit">
+              <UserPlus size={18} />
+              Создать
+            </button>
+          </form>
+
+          <form className="panel import-form" onSubmit={handleImport}>
+            <div className="panel-header">
+              <div>
+                <h2>Импорт CSV</h2>
+                <p>Колонки: email, password, first_name, last_name, middle_name, position, roles</p>
+              </div>
+              <Upload size={20} aria-hidden="true" />
+            </div>
+
+            <label className="form-field">
+              <span>CSV-файл</span>
+              <input accept=".csv,text/csv" name="file" required type="file" />
+            </label>
+
+            {importResult && (
+              <div className="import-result">
+                <strong>
+                  Создано: {importResult.created}, ошибок: {importResult.failed}
+                </strong>
+                {importResult.errors.slice(0, 4).map((item) => (
+                  <span key={`${item.row}-${item.email ?? item.message}`}>
+                    Строка {item.row}: {item.email ? `${item.email} - ` : ''}
+                    {item.message}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <button className="secondary-button" disabled={status === 'saving'} type="submit">
+              <Upload size={18} />
+              Импортировать
+            </button>
+          </form>
+        </div>
       </section>
     </div>
   );
