@@ -120,7 +120,7 @@ export function ProfilePage() {
       {notice && <div className="form-success">{notice}</div>}
 
       <section className="profile-layout">
-        <form className="panel profile-form" onSubmit={handleAvatarSubmit}>
+        <form className="panel profile-form avatar-card" onSubmit={handleAvatarSubmit}>
           <div className="panel-header">
             <div>
               <h2>Аватар</h2>
