@@ -15,6 +15,7 @@ import (
 const (
 	maxFailedLoginAttempts = 5
 	lockoutDuration        = 15 * time.Minute
+	passwordResetTTL       = 30 * time.Minute
 )
 
 var (
@@ -22,6 +23,7 @@ var (
 	ErrUserBlocked        = errors.New("user account is blocked")
 	ErrUserLocked         = errors.New("user account is temporarily locked")
 	ErrInvalidToken       = errors.New("invalid refresh token")
+	ErrInvalidResetToken  = errors.New("invalid password reset token")
 )
 
 type Service struct {
@@ -55,6 +57,12 @@ type TokenPair struct {
 	RefreshToken          string
 	RefreshTokenExpiresAt time.Time
 	User                  User
+}
+
+type PasswordResetRequest struct {
+	DevResetToken *string
+	DevResetURL   *string
+	ExpiresAt     *time.Time
 }
 
 func NewService(cfg config.Config, db *pgxpool.Pool) *Service {
@@ -124,6 +132,100 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 		return nil
 	}
 	return RevokeRefreshToken(ctx, s.db, HashRefreshToken(refreshToken))
+}
+
+func (s *Service) RequestPasswordReset(ctx context.Context, email string) (*PasswordResetRequest, error) {
+	user, _, _, _, isActive, err := s.getUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &PasswordResetRequest{}, nil
+		}
+		return nil, err
+	}
+	if !isActive {
+		return &PasswordResetRequest{}, nil
+	}
+
+	token, tokenHash, err := GeneratePasswordResetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	expiresAt := time.Now().Add(passwordResetTTL)
+	if _, err := s.db.Exec(ctx, `
+		INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+	`, user.ID, tokenHash, expiresAt); err != nil {
+		return nil, err
+	}
+
+	result := &PasswordResetRequest{ExpiresAt: &expiresAt}
+	if s.cfg.AppEnv == "development" {
+		resetURL := strings.TrimRight(s.cfg.FrontendURL, "/") + "/reset-password?token=" + token
+		result.DevResetToken = &token
+		result.DevResetURL = &resetURL
+	}
+
+	return result, nil
+}
+
+func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
+	tokenHash := HashPasswordResetToken(token)
+	newPasswordHash, err := HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var userID string
+	err = tx.QueryRow(ctx, `
+		SELECT user_id::text
+		FROM password_reset_tokens
+		WHERE token_hash = $1
+			AND used_at IS NULL
+			AND expires_at > NOW()
+		FOR UPDATE
+	`, tokenHash).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidResetToken
+		}
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE users
+		SET password_hash = $2,
+			failed_login_attempts = 0,
+			locked_until = NULL,
+			updated_at = NOW()
+		WHERE id = $1 AND is_active = true
+	`, userID, newPasswordHash); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE password_reset_tokens
+		SET used_at = NOW()
+		WHERE token_hash = $1
+	`, tokenHash); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE refresh_tokens
+		SET revoked_at = NOW()
+		WHERE user_id = $1 AND revoked_at IS NULL
+	`, userID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (s *Service) GetUserByID(ctx context.Context, userID string) (*User, error) {

@@ -72,7 +72,22 @@ func GenerateRefreshToken() (string, string, error) {
 	return token, HashRefreshToken(token), nil
 }
 
+func GeneratePasswordResetToken() (string, string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", "", err
+	}
+
+	token := base64.RawURLEncoding.EncodeToString(bytes)
+	return token, HashPasswordResetToken(token), nil
+}
+
 func HashRefreshToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func HashPasswordResetToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }

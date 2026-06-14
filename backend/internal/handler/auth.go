@@ -20,10 +20,26 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+type forgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type resetPasswordRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
 type tokenResponse struct {
 	AccessToken          string    `json:"access_token"`
 	AccessTokenExpiresAt string    `json:"access_token_expires_at"`
 	User                 auth.User `json:"user"`
+}
+
+type forgotPasswordResponse struct {
+	Status        string  `json:"status"`
+	DevResetToken *string `json:"dev_reset_token,omitempty"`
+	DevResetURL   *string `json:"dev_reset_url,omitempty"`
+	ExpiresAt     *string `json:"expires_at,omitempty"`
 }
 
 func (h authHandler) login(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +100,53 @@ func (h authHandler) logout(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (h authHandler) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req forgotPasswordRequest
+	if err := httpjson.DecodeJSON(r, &req); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON request body")
+		return
+	}
+	if strings.TrimSpace(req.Email) == "" {
+		httpjson.WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Email is required")
+		return
+	}
+
+	reset, err := h.service.RequestPasswordReset(r.Context(), req.Email)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+		return
+	}
+
+	response := forgotPasswordResponse{Status: "ok"}
+	if reset.ExpiresAt != nil {
+		expiresAt := reset.ExpiresAt.Format("2006-01-02T15:04:05Z07:00")
+		response.ExpiresAt = &expiresAt
+	}
+	response.DevResetToken = reset.DevResetToken
+	response.DevResetURL = reset.DevResetURL
+
+	httpjson.WriteJSON(w, http.StatusOK, response)
+}
+
+func (h authHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var req resetPasswordRequest
+	if err := httpjson.DecodeJSON(r, &req); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON request body")
+		return
+	}
+	if strings.TrimSpace(req.Token) == "" || strings.TrimSpace(req.NewPassword) == "" {
+		httpjson.WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Token and new_password are required")
+		return
+	}
+
+	if err := h.service.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
+		writeAuthError(w, err)
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (h authHandler) setRefreshCookie(w http.ResponseWriter, tokens *auth.TokenPair) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     h.cfg.RefreshCookieName,
@@ -114,6 +177,10 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		httpjson.WriteError(w, http.StatusTooManyRequests, "USER_LOCKED", "User account is temporarily locked")
 	case errors.Is(err, auth.ErrInvalidToken):
 		httpjson.WriteError(w, http.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Invalid refresh token")
+	case errors.Is(err, auth.ErrInvalidResetToken):
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_RESET_TOKEN", "Invalid or expired reset token")
+	case errors.Is(err, auth.ErrWeakPassword):
+		httpjson.WriteError(w, http.StatusBadRequest, "WEAK_PASSWORD", auth.ErrWeakPassword.Error())
 	default:
 		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
 	}
