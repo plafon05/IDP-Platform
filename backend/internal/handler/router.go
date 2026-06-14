@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/auth"
+	"idp-platform/backend/internal/catalog"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/httpjson"
 	"idp-platform/backend/internal/users"
@@ -19,6 +20,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	authService := auth.NewService(cfg, dbPool)
 	authHandlers := authHandler{cfg: cfg, service: authService}
 	usersHandlers := usersHandler{service: users.NewService(dbPool), avatarStore: avatarStore}
+	catalogHandlers := catalogHandler{service: catalog.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -42,6 +44,18 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	mux.Handle("GET /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.get))))
 	mux.Handle("PUT /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.update))))
 	mux.Handle("DELETE /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.deactivate))))
+	mux.Handle("GET /api/v1/competencies", authMiddleware(cfg, http.HandlerFunc(catalogHandlers.listCompetencies)))
+	mux.Handle("POST /api/v1/competencies", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.createCompetency))))
+	mux.Handle("PUT /api/v1/competencies/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.updateCompetency))))
+	mux.Handle("DELETE /api/v1/competencies/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.archiveCompetency))))
+	mux.Handle("GET /api/v1/task-categories", authMiddleware(cfg, http.HandlerFunc(catalogHandlers.listTaskCategories)))
+	mux.Handle("POST /api/v1/task-categories", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.createTaskCategory))))
+	mux.Handle("PUT /api/v1/task-categories/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.updateTaskCategory))))
+	mux.Handle("DELETE /api/v1/task-categories/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.deleteTaskCategory))))
+	mux.Handle("GET /api/v1/tags", authMiddleware(cfg, http.HandlerFunc(catalogHandlers.listTags)))
+	mux.Handle("POST /api/v1/tags", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.createTag))))
+	mux.Handle("PUT /api/v1/tags/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.updateTag))))
+	mux.Handle("DELETE /api/v1/tags/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.deleteTag))))
 
 	notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")
