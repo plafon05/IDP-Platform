@@ -1,7 +1,7 @@
 import { KeyRound, Save, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
-import { changePassword, updateProfile } from '../shared/api/auth';
+import { changePassword, updateAvatar, updateProfile } from '../shared/api/auth';
 
 const emptyPasswordForm = {
   current_password: '',
@@ -20,6 +20,7 @@ export function ProfilePage() {
   const [passwords, setPasswords] = useState(emptyPasswordForm);
   const [profileStatus, setProfileStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [passwordStatus, setPasswordStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [avatarStatus, setAvatarStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,6 +71,28 @@ export function ProfilePage() {
     }
   }
 
+  async function handleAvatarSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const file = formData.get('avatar');
+    if (!(file instanceof File) || file.size === 0) {
+      setError('Выберите файл аватара');
+      return;
+    }
+
+    setAvatarStatus('saving');
+    setError(null);
+    try {
+      const updatedUser = await updateAvatar(file);
+      setUser(updatedUser);
+      setAvatarStatus('saved');
+      event.currentTarget.reset();
+    } catch {
+      setError('Не удалось загрузить аватар');
+      setAvatarStatus('idle');
+    }
+  }
+
   return (
     <div className="profile-page">
       <section className="section-header">
@@ -78,7 +101,7 @@ export function ProfilePage() {
           <h2>Профиль</h2>
         </div>
         <div className="profile-identity">
-          <div className="person-avatar">{user ? initials(user.first_name, user.last_name) : 'ID'}</div>
+          <AvatarImage user={user} />
           <div>
             <strong>{user ? `${user.first_name} ${user.last_name}` : 'Пользователь'}</strong>
             <span>{user?.email}</span>
@@ -89,6 +112,30 @@ export function ProfilePage() {
       {error && <div className="form-error">{error}</div>}
 
       <section className="profile-layout">
+        <form className="panel profile-form" onSubmit={handleAvatarSubmit}>
+          <div className="panel-header">
+            <div>
+              <h2>Аватар</h2>
+              <p>JPEG, PNG или WebP до 2 MB</p>
+            </div>
+            <UserRound size={20} aria-hidden="true" />
+          </div>
+
+          <div className="avatar-preview">
+            <AvatarImage user={user} />
+          </div>
+
+          <label className="form-field">
+            <span>Файл</span>
+            <input accept="image/jpeg,image/png,image/webp" name="avatar" required type="file" />
+          </label>
+
+          <button className="secondary-button" disabled={avatarStatus === 'saving'} type="submit">
+            <Save size={18} />
+            {avatarStatus === 'saved' ? 'Загружено' : 'Загрузить'}
+          </button>
+        </form>
+
         <form className="panel profile-form" onSubmit={handleProfileSubmit}>
           <div className="panel-header">
             <div>
@@ -179,6 +226,14 @@ export function ProfilePage() {
       </section>
     </div>
   );
+}
+
+function AvatarImage({ user }: { user: { avatar_url?: string; first_name: string; last_name: string } | null }) {
+  if (user?.avatar_url) {
+    return <img className="person-avatar image" src={user.avatar_url} alt="" />;
+  }
+
+  return <div className="person-avatar">{user ? initials(user.first_name, user.last_name) : 'ID'}</div>;
 }
 
 function initials(firstName: string, lastName: string) {

@@ -7,6 +7,7 @@ export type User = {
   last_name: string;
   middle_name?: string;
   position: string;
+  avatar_url?: string;
   roles: string[];
 };
 
@@ -54,4 +55,14 @@ export async function updateProfile(payload: UpdateProfilePayload) {
 
 export async function changePassword(payload: ChangePasswordPayload) {
   await api.put('/api/v1/users/me/password', payload);
+}
+
+export async function updateAvatar(file: File) {
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  const response = await api.put<User>('/api/v1/users/me/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
 }

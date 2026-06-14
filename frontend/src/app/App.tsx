@@ -120,7 +120,7 @@ export function App() {
               type="button"
               aria-label="Профиль пользователя"
             >
-              {initials}
+              {user?.avatar_url ? <img src={user.avatar_url} alt="" /> : initials}
             </button>
           </div>
         </header>

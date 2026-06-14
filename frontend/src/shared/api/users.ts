@@ -10,6 +10,7 @@ export type User = {
   middle_name?: string;
   position: string;
   manager_id?: string;
+  avatar_url?: string;
   is_active: boolean;
   roles: UserRole[];
 };
