@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
+import { ProfilePage } from '../pages/ProfilePage';
 import { UsersPage } from '../pages/UsersPage';
 
-type Section = 'dashboard' | 'users';
+type Section = 'dashboard' | 'users' | 'profile';
 type NavItem = {
-  id: Section | 'plans' | 'analytics' | 'settings';
+  id: Exclude<Section, 'profile'> | 'plans' | 'analytics' | 'settings';
   icon: typeof LayoutDashboard;
   label: string;
   disabled?: boolean;
@@ -52,8 +53,16 @@ export function App() {
   }
 
   const initials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'ID';
-  const pageTitle = section === 'users' ? 'Управление пользователями' : 'Индивидуальные планы развития';
-  const breadcrumb = section === 'users' ? 'Главная / Пользователи' : 'Главная / Дашборд';
+  const pageTitle = {
+    dashboard: 'Индивидуальные планы развития',
+    users: 'Управление пользователями',
+    profile: 'Профиль пользователя',
+  }[section];
+  const breadcrumb = {
+    dashboard: 'Главная / Дашборд',
+    users: 'Главная / Пользователи',
+    profile: 'Главная / Профиль',
+  }[section];
 
   return (
     <div className="shell">
@@ -105,14 +114,21 @@ export function App() {
             <button className="icon-button" onClick={() => void logout()} type="button" aria-label="Выйти">
               <LogOut size={20} />
             </button>
-            <button className="avatar-button" type="button" aria-label="Профиль пользователя">
+            <button
+              className="avatar-button"
+              onClick={() => setSection('profile')}
+              type="button"
+              aria-label="Профиль пользователя"
+            >
               {initials}
             </button>
           </div>
         </header>
 
         <main>
-          {section === 'users' ? <UsersPage /> : <DashboardPage />}
+          {section === 'profile' && <ProfilePage />}
+          {section === 'users' && <UsersPage />}
+          {section === 'dashboard' && <DashboardPage />}
         </main>
       </div>
     </div>

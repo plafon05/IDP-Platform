@@ -16,6 +16,18 @@ export type AuthResponse = {
   user: User;
 };
 
+export type UpdateProfilePayload = {
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  position: string;
+};
+
+export type ChangePasswordPayload = {
+  current_password: string;
+  new_password: string;
+};
+
 export async function login(email: string, password: string) {
   const response = await api.post<AuthResponse>('/api/v1/auth/login', { email, password });
   return response.data;
@@ -33,4 +45,13 @@ export async function logout() {
 export async function getCurrentUser() {
   const response = await api.get<User>('/api/v1/users/me');
   return response.data;
+}
+
+export async function updateProfile(payload: UpdateProfilePayload) {
+  const response = await api.put<User>('/api/v1/users/me', payload);
+  return response.data;
+}
+
+export async function changePassword(payload: ChangePasswordPayload) {
+  await api.put('/api/v1/users/me/password', payload);
 }

@@ -11,6 +11,7 @@ type SessionState = {
   bootstrap: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: User) => void;
 };
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -49,5 +50,9 @@ export const useSessionStore = create<SessionState>((set) => ({
       setAccessToken(null);
       set({ status: 'anonymous', user: null, error: null });
     }
+  },
+
+  setUser(user) {
+    set({ user });
   },
 }));

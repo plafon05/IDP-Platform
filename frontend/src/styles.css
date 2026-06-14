@@ -361,6 +361,12 @@ main {
   max-width: 1400px;
 }
 
+.profile-page {
+  display: grid;
+  gap: 20px;
+  max-width: 980px;
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -389,6 +395,21 @@ main {
 
 .summary-strip strong {
   font-size: 20px;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.profile-identity strong,
+.profile-identity span {
+  display: block;
 }
 
 .welcome-band {
@@ -483,6 +504,13 @@ main {
   align-items: start;
 }
 
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.7fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .panel {
   padding: 18px;
 }
@@ -561,6 +589,11 @@ main {
 }
 
 .user-form {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-form {
   display: grid;
   gap: 14px;
 }
@@ -699,7 +732,8 @@ main {
 
   .metrics-grid,
   .content-grid,
-  .users-layout {
+  .users-layout,
+  .profile-layout {
     grid-template-columns: 1fr;
   }
 }
