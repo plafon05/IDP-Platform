@@ -16,6 +16,7 @@ import (
 	"idp-platform/backend/internal/handler"
 	"idp-platform/backend/internal/migrations"
 	appserver "idp-platform/backend/internal/server"
+	"idp-platform/backend/internal/storage"
 )
 
 func main() {
@@ -41,7 +42,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := handler.NewRouter(cfg, dbPool)
+	avatarStore, err := storage.NewMinIO(cfg)
+	if err != nil {
+		slog.Error("object storage initialization failed", "error", err)
+		os.Exit(1)
+	}
+
+	router := handler.NewRouter(cfg, dbPool, avatarStore)
 	server := appserver.NewHTTPServer(cfg, router)
 
 	errCh := make(chan error, 1)

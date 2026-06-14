@@ -36,6 +36,7 @@ type User struct {
 	LastName   string   `json:"last_name"`
 	MiddleName *string  `json:"middle_name,omitempty"`
 	Position   string   `json:"position"`
+	AvatarURL  *string  `json:"avatar_url,omitempty"`
 	Roles      []string `json:"roles"`
 }
 
@@ -130,10 +131,10 @@ func (s *Service) GetUserByID(ctx context.Context, userID string) (*User, error)
 	var middleName *string
 
 	err := s.db.QueryRow(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position
+		SELECT id::text, email, first_name, last_name, middle_name, position, avatar_url
 		FROM users
 		WHERE id = $1 AND is_active = true
-	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &middleName, &user.Position)
+	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &middleName, &user.Position, &user.AvatarURL)
 	if err != nil {
 		return nil, err
 	}
@@ -181,12 +182,12 @@ func (s *Service) getUserByEmail(ctx context.Context, email string) (User, strin
 	var middleName *string
 
 	err := s.db.QueryRow(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position,
+		SELECT id::text, email, first_name, last_name, middle_name, position, avatar_url,
 			password_hash, failed_login_attempts, locked_until, is_active
 		FROM users
 		WHERE lower(email) = lower($1)
 	`, strings.TrimSpace(email)).Scan(
-		&user.ID, &user.Email, &user.FirstName, &user.LastName, &middleName, &user.Position,
+		&user.ID, &user.Email, &user.FirstName, &user.LastName, &middleName, &user.Position, &user.AvatarURL,
 		&passwordHash, &failedAttempts, &lockedUntil, &isActive,
 	)
 	if err != nil {

@@ -14,11 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
+func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore) http.Handler {
 	mux := http.NewServeMux()
 	authService := auth.NewService(cfg, dbPool)
 	authHandlers := authHandler{cfg: cfg, service: authService}
-	usersHandlers := usersHandler{service: users.NewService(dbPool)}
+	usersHandlers := usersHandler{service: users.NewService(dbPool), avatarStore: avatarStore}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -30,6 +30,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool) http.Handler {
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
 	mux.Handle("PUT /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateProfile)))
 	mux.Handle("PUT /api/v1/users/me/password", authMiddleware(cfg, http.HandlerFunc(usersHandlers.changePassword)))
+	mux.Handle("PUT /api/v1/users/me/avatar", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateAvatar)))
 	mux.Handle("GET /api/v1/users", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.list))))
 	mux.Handle("POST /api/v1/users", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.create))))
 	mux.Handle("POST /api/v1/users/import", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.importCSV))))

@@ -30,6 +30,7 @@ type User struct {
 	MiddleName *string  `json:"middle_name,omitempty"`
 	Position   string   `json:"position"`
 	ManagerID  *string  `json:"manager_id,omitempty"`
+	AvatarURL  *string  `json:"avatar_url,omitempty"`
 	IsActive   bool     `json:"is_active"`
 	Roles      []string `json:"roles"`
 }
@@ -138,7 +139,7 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 	}
 
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, is_active
+		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, avatar_url, is_active
 		FROM users
 		WHERE $1 = '%%'
 			OR email ILIKE $1
@@ -164,7 +165,7 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.IsActive); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
 			return nil, err
 		}
 		user.Roles, err = s.roles(ctx, user.ID)
@@ -180,10 +181,10 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 	var user User
 	err := s.db.QueryRow(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, is_active
+		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, avatar_url, is_active
 		FROM users
 		WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.IsActive)
+	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.AvatarURL, &user.IsActive)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -201,7 +202,7 @@ func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 
 func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]User, error) {
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, is_active
+		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, avatar_url, is_active
 		FROM users
 		WHERE manager_id = $1 AND is_active = true
 		ORDER BY last_name, first_name
@@ -214,7 +215,7 @@ func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]Use
 	result := make([]User, 0)
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.IsActive); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
 			return nil, err
 		}
 		user.Roles, err = s.roles(ctx, user.ID)
@@ -445,6 +446,23 @@ func (s *Service) ChangePassword(ctx context.Context, userID, currentPassword, n
 		WHERE id = $1
 	`, userID, newHash)
 	return err
+}
+
+func (s *Service) UpdateAvatar(ctx context.Context, userID, avatarURL string) (*User, error) {
+	tag, err := s.db.Exec(ctx, `
+		UPDATE users
+		SET avatar_url = $2,
+			updated_at = NOW()
+		WHERE id = $1 AND is_active = true
+	`, userID, avatarURL)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	return s.Get(ctx, userID)
 }
 
 func (s *Service) Deactivate(ctx context.Context, userID string) error {

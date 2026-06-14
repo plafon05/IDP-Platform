@@ -18,6 +18,12 @@ type Config struct {
 	JWTAccessTTL       time.Duration
 	JWTRefreshTTL      time.Duration
 	RefreshCookieName  string
+	MinIOEndpoint      string
+	MinIOAccessKey     string
+	MinIOSecretKey     string
+	MinIOBucket        string
+	MinIOPublicURL     string
+	MinIOUseSSL        bool
 	SeedAdminEmail     string
 	SeedAdminPassword  string
 	SeedAdminFirstName string
@@ -39,6 +45,12 @@ func Load() Config {
 		JWTAccessTTL:       durationEnv("JWT_ACCESS_TTL", 15*time.Minute),
 		JWTRefreshTTL:      durationEnv("JWT_REFRESH_TTL", 30*24*time.Hour),
 		RefreshCookieName:  env("REFRESH_COOKIE_NAME", "idp_refresh_token"),
+		MinIOEndpoint:      env("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey:     env("MINIO_ACCESS_KEY", "minio"),
+		MinIOSecretKey:     env("MINIO_SECRET_KEY", "minio12345"),
+		MinIOBucket:        env("MINIO_BUCKET", "idp-platform"),
+		MinIOPublicURL:     env("MINIO_PUBLIC_URL", "http://localhost:9000"),
+		MinIOUseSSL:        boolEnv("MINIO_USE_SSL", false),
 		SeedAdminEmail:     env("SEED_ADMIN_EMAIL", "admin@idp.local"),
 		SeedAdminPassword:  env("SEED_ADMIN_PASSWORD", "Admin12345"),
 		SeedAdminFirstName: env("SEED_ADMIN_FIRST_NAME", "HR"),
@@ -47,6 +59,14 @@ func Load() Config {
 		WriteTimeout:       secondsEnv("HTTP_WRITE_TIMEOUT_SECONDS", 15),
 		IdleTimeout:        secondsEnv("HTTP_IDLE_TIMEOUT_SECONDS", 60),
 	}
+}
+
+func boolEnv(key string, fallback bool) bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if raw == "" {
+		return fallback
+	}
+	return raw == "1" || raw == "true" || raw == "yes"
 }
 
 func env(key, fallback string) string {

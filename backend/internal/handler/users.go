@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"bytes"
+	"context"
 	"encoding/csv"
 	"errors"
 	"io"
@@ -14,7 +16,12 @@ import (
 )
 
 type usersHandler struct {
-	service *users.Service
+	service     *users.Service
+	avatarStore AvatarStore
+}
+
+type AvatarStore interface {
+	PutAvatar(ctx context.Context, userID, contentType, extension string, reader io.Reader, size int64) (string, error)
 }
 
 type createUserRequest struct {
@@ -50,7 +57,10 @@ type changePasswordRequest struct {
 	NewPassword     string `json:"new_password"`
 }
 
-const maxCSVImportSize = 2 << 20
+const (
+	maxCSVImportSize = 2 << 20
+	maxAvatarSize    = 2 << 20
+)
 
 func (h usersHandler) list(w http.ResponseWriter, r *http.Request) {
 	page := intQuery(r, "page", 1)
@@ -277,6 +287,76 @@ func (h usersHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h usersHandler) updateAvatar(w http.ResponseWriter, r *http.Request) {
+	if h.avatarStore == nil {
+		httpjson.WriteError(w, http.StatusServiceUnavailable, "STORAGE_UNAVAILABLE", "File storage is unavailable")
+		return
+	}
+
+	claims, ok := accessClaimsFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+
+	if err := r.ParseMultipartForm(maxAvatarSize); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "Avatar file is required")
+		return
+	}
+
+	file, header, err := r.FormFile("avatar")
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "Avatar file is required")
+		return
+	}
+	defer file.Close()
+
+	if header.Size <= 0 || header.Size > maxAvatarSize {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "Avatar must be up to 2 MB")
+		return
+	}
+
+	payload, err := io.ReadAll(io.LimitReader(file, maxAvatarSize+1))
+	if err != nil || len(payload) == 0 || len(payload) > maxAvatarSize {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "Avatar must be up to 2 MB")
+		return
+	}
+
+	contentType := http.DetectContentType(payload)
+	extension, ok := avatarExtension(contentType)
+	if !ok {
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "Avatar must be JPEG, PNG, or WebP")
+		return
+	}
+
+	avatarURL, err := h.avatarStore.PutAvatar(r.Context(), claims.UserID, contentType, extension, bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, "STORAGE_ERROR", "Avatar was not uploaded")
+		return
+	}
+
+	user, err := h.service.UpdateAvatar(r.Context(), claims.UserID, avatarURL)
+	if err != nil {
+		writeUsersError(w, err)
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, user)
+}
+
+func avatarExtension(contentType string) (string, bool) {
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg", true
+	case "image/png":
+		return ".png", true
+	case "image/webp":
+		return ".webp", true
+	default:
+		return "", false
+	}
 }
 
 func userIDFromPath(r *http.Request) string {
