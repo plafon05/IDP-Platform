@@ -76,6 +76,10 @@ export function LoginPage() {
             <LogIn size={18} />
             {isSubmitting ? 'Вход...' : 'Войти'}
           </button>
+
+          <a className="form-link" href="/reset-password">
+            Забыли пароль?
+          </a>
         </form>
       </section>
     </main>

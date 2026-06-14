@@ -29,6 +29,13 @@ export type ChangePasswordPayload = {
   new_password: string;
 };
 
+export type ForgotPasswordResponse = {
+  status: string;
+  dev_reset_token?: string;
+  dev_reset_url?: string;
+  expires_at?: string;
+};
+
 export async function login(email: string, password: string) {
   const response = await api.post<AuthResponse>('/api/v1/auth/login', { email, password });
   return response.data;
@@ -65,4 +72,13 @@ export async function updateAvatar(file: File) {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
+}
+
+export async function forgotPassword(email: string) {
+  const response = await api.post<ForgotPasswordResponse>('/api/v1/auth/forgot-password', { email });
+  return response.data;
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  await api.post('/api/v1/auth/reset-password', { token, new_password: newPassword });
 }
