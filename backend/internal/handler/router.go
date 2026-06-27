@@ -10,6 +10,7 @@ import (
 	"idp-platform/backend/internal/catalog"
 	"idp-platform/backend/internal/comments"
 	"idp-platform/backend/internal/config"
+	"idp-platform/backend/internal/dashboard"
 	"idp-platform/backend/internal/httpjson"
 	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/tasks"
@@ -27,6 +28,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	idpHandlers := idpHandler{service: idp.NewService(dbPool)}
 	taskHandlers := tasksHandler{service: tasks.NewService(dbPool)}
 	commentHandlers := commentsHandler{service: comments.NewService(dbPool)}
+	dashboardHandlers := dashboardHandler{service: dashboard.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -38,6 +40,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", authHandlers.forgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", authHandlers.resetPassword)
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
+	mux.Handle("GET /api/v1/dashboard", authMiddleware(cfg, http.HandlerFunc(dashboardHandlers.get)))
 	mux.Handle("PUT /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateProfile)))
 	mux.Handle("PUT /api/v1/users/me/password", authMiddleware(cfg, http.HandlerFunc(usersHandlers.changePassword)))
 	mux.Handle("PUT /api/v1/users/me/avatar", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateAvatar)))
