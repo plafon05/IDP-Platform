@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ func (h tasksHandler) list(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
 		return
 	}
-	result, err := h.service.List(r.Context(), access, r.PathValue("idpId"))
+	result, err := h.service.List(r.Context(), access, idpIDFromTasksPath(r))
 	if err != nil {
 		writeTaskError(w, err)
 		return
@@ -58,7 +59,7 @@ func (h tasksHandler) create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.service.Create(r.Context(), access, r.PathValue("idpId"), input)
+	result, err := h.service.Create(r.Context(), access, idpIDFromTasksPath(r), input)
 	if err != nil {
 		writeTaskError(w, err)
 		return
@@ -72,7 +73,7 @@ func (h tasksHandler) get(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
 		return
 	}
-	result, err := h.service.Get(r.Context(), access, r.PathValue("id"))
+	result, err := h.service.Get(r.Context(), access, taskIDFromPath(r))
 	if err != nil {
 		writeTaskError(w, err)
 		return
@@ -90,7 +91,7 @@ func (h tasksHandler) update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.service.Update(r.Context(), access, r.PathValue("id"), input)
+	result, err := h.service.Update(r.Context(), access, taskIDFromPath(r), input)
 	if err != nil {
 		writeTaskError(w, err)
 		return
@@ -109,7 +110,7 @@ func (h tasksHandler) updateProgress(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON request body")
 		return
 	}
-	result, err := h.service.UpdateProgress(r.Context(), access, r.PathValue("id"), tasks.ProgressInput{
+	result, err := h.service.UpdateProgress(r.Context(), access, taskIDFromProgressPath(r), tasks.ProgressInput{
 		Status: strings.TrimSpace(req.Status), Progress: req.Progress,
 		SelfRating: emptyStringToNil(req.SelfRating), SelfComment: emptyStringToNil(req.SelfComment),
 	})
@@ -126,7 +127,7 @@ func (h tasksHandler) delete(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
 		return
 	}
-	if err := h.service.Delete(r.Context(), access, r.PathValue("id")); err != nil {
+	if err := h.service.Delete(r.Context(), access, taskIDFromPath(r)); err != nil {
 		writeTaskError(w, err)
 		return
 	}
@@ -157,6 +158,18 @@ func decodeTaskInput(w http.ResponseWriter, r *http.Request) (tasks.Input, bool)
 	}, true
 }
 
+func idpIDFromTasksPath(r *http.Request) string {
+	return strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1/idps/"), "/tasks")
+}
+
+func taskIDFromPath(r *http.Request) string {
+	return strings.TrimPrefix(r.URL.Path, "/api/v1/tasks/")
+}
+
+func taskIDFromProgressPath(r *http.Request) string {
+	return strings.TrimSuffix(taskIDFromPath(r), "/progress")
+}
+
 func writeTaskError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, tasks.ErrNotFound):
@@ -168,6 +181,7 @@ func writeTaskError(w http.ResponseWriter, err error) {
 	case errors.Is(err, tasks.ErrInvalidInput):
 		httpjson.WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid task data")
 	default:
+		slog.Error("task request failed", "error", err)
 		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
 	}
 }
