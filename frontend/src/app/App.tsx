@@ -9,15 +9,16 @@ import {
   Settings,
   Users,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { CatalogPage } from '../pages/CatalogPage';
-import { DashboardPage } from '../pages/DashboardPage';
 import { IDPsPage } from '../pages/IDPsPage';
 import { LoginPage } from '../pages/LoginPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { UsersPage } from '../pages/UsersPage';
+
+const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 
 type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'profile';
 type NavItem = {
@@ -157,7 +158,7 @@ export function App() {
           {section === 'users' && <UsersPage />}
           {section === 'catalog' && <CatalogPage />}
           {section === 'plans' && <IDPsPage />}
-          {section === 'dashboard' && <DashboardPage />}
+          {section === 'dashboard' && <Suspense fallback={<div className="empty-state">Загрузка дашборда...</div>}><DashboardPage /></Suspense>}
         </main>
       </div>
     </div>
