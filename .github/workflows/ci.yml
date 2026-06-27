@@ -47,3 +47,38 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: idp_test
+          POSTGRES_USER: idp
+          POSTGRES_PASSWORD: idp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U idp -d idp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      TEST_DATABASE_URL: postgres://idp:idp@localhost:5432/idp_test?sslmode=disable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: backend/go.sum
+
+      - name: Integration tests
+        run: go test ./integration -v
