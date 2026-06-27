@@ -6,7 +6,6 @@ const actionLabels: Record<string, string> = {
   'idp.updated': 'Изменён ИПР',
   'idp.status_changed': 'Изменён статус ИПР',
   'idp.archived': 'ИПР перемещён в архив',
-  'idp.auto_completed': 'ИПР завершён автоматически',
   'task.created': 'Создана задача',
   'task.updated': 'Изменена задача',
   'task.progress_changed': 'Обновлён прогресс задачи',
