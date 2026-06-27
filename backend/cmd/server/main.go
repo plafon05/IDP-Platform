@@ -14,6 +14,7 @@ import (
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/database"
 	"idp-platform/backend/internal/handler"
+	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/migrations"
 	appserver "idp-platform/backend/internal/server"
 	"idp-platform/backend/internal/storage"
@@ -50,6 +51,9 @@ func main() {
 
 	router := handler.NewRouter(cfg, dbPool, avatarStore)
 	server := appserver.NewHTTPServer(cfg, router)
+	workerCtx, stopWorkers := context.WithCancel(context.Background())
+	defer stopWorkers()
+	go idp.NewService(dbPool).RunAutoCompletion(workerCtx, cfg.IDPAutoCompleteInterval)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -69,6 +73,7 @@ func main() {
 	case sig := <-stopCh:
 		slog.Info("shutdown requested", "signal", sig.String())
 	}
+	stopWorkers()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

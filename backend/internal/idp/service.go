@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -308,9 +309,6 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 	if !validTransition(current.Status, input.Status) {
 		return nil, ErrInvalidTransition
 	}
-	if input.Status == "completed" && empty(input.Comment) {
-		return nil, ErrInvalidInput
-	}
 	if input.Status == "cancelled" && empty(input.Reason) {
 		return nil, ErrInvalidInput
 	}
@@ -336,7 +334,7 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 		return nil, err
 	}
 
-	if input.Status == "completed" {
+	if input.Status == "completed" && !empty(input.Comment) {
 		_, err = tx.Exec(ctx, `
 			INSERT INTO comments (author_id, entity_type, entity_id, content)
 			VALUES ($1, 'idp', $2, $3)
@@ -356,6 +354,77 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 	}
 
 	return s.Get(ctx, access, id)
+}
+
+func (s *Service) AutoCompleteDue(ctx context.Context) (int, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		UPDATE idps i
+		SET status='completed',updated_at=NOW()
+		WHERE i.status='active' AND i.archived_at IS NULL AND i.end_date<=CURRENT_DATE
+			AND EXISTS(SELECT 1 FROM tasks t WHERE t.idp_id=i.id AND t.deleted_at IS NULL)
+			AND NOT EXISTS(SELECT 1 FROM tasks t WHERE t.idp_id=i.id AND t.deleted_at IS NULL AND t.status<>'completed')
+		RETURNING i.id::text
+	`)
+	if err != nil {
+		return 0, err
+	}
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	rows.Close()
+
+	for _, id := range ids {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO audit_logs (actor_id,entity_type,entity_id,action,old_value,new_value)
+			VALUES (NULL,'idp',$1,'idp.auto_completed','{"status":"active"}'::jsonb,'{"status":"completed"}'::jsonb)
+		`, id); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
+func (s *Service) RunAutoCompletion(ctx context.Context, interval time.Duration) {
+	run := func() {
+		count, err := s.AutoCompleteDue(ctx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			slog.Error("idp auto-completion failed", "error", err)
+			return
+		}
+		if count > 0 {
+			slog.Info("idps auto-completed", "count", count)
+		}
+	}
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
 }
 
 func (s *Service) Archive(ctx context.Context, access Access, id string) error {
