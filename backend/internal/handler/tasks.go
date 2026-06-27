@@ -134,6 +134,20 @@ func (h tasksHandler) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h tasksHandler) audit(w http.ResponseWriter, r *http.Request) {
+	access, ok := idpAccess(r)
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+	result, err := h.service.Audit(r.Context(), access, taskIDFromAuditPath(r))
+	if err != nil {
+		writeTaskError(w, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, result)
+}
+
 func decodeTaskInput(w http.ResponseWriter, r *http.Request) (tasks.Input, bool) {
 	var req taskRequest
 	if err := httpjson.DecodeJSON(r, &req); err != nil {
@@ -168,6 +182,10 @@ func taskIDFromPath(r *http.Request) string {
 
 func taskIDFromProgressPath(r *http.Request) string {
 	return strings.TrimSuffix(taskIDFromPath(r), "/progress")
+}
+
+func taskIDFromAuditPath(r *http.Request) string {
+	return strings.TrimSuffix(taskIDFromPath(r), "/audit")
 }
 
 func writeTaskError(w http.ResponseWriter, err error) {

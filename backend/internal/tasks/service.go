@@ -77,6 +77,16 @@ type ProgressInput struct {
 	SelfComment *string
 }
 
+type AuditEntry struct {
+	ID        string          `json:"id"`
+	ActorID   *string         `json:"actor_id,omitempty"`
+	ActorName string          `json:"actor_name"`
+	Action    string          `json:"action"`
+	OldValue  json.RawMessage `json:"old_value,omitempty"`
+	NewValue  json.RawMessage `json:"new_value,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
 type planAccess struct {
 	EmployeeID string
 	ManagerID  string
@@ -286,6 +296,37 @@ func (s *Service) Delete(ctx context.Context, access idp.Access, taskID string) 
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func (s *Service) Audit(ctx context.Context, access idp.Access, taskID string) ([]AuditEntry, error) {
+	_, plan, err := s.get(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, plan) {
+		return nil, ErrForbidden
+	}
+	rows, err := s.db.Query(ctx, `
+		SELECT a.id::text, a.actor_id::text,
+			COALESCE(concat_ws(' ', u.last_name, u.first_name, u.middle_name), ''),
+			a.action, a.old_value, a.new_value, a.created_at
+		FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id
+		WHERE a.entity_type='task' AND a.entity_id=$1
+		ORDER BY a.created_at, a.id
+	`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]AuditEntry, 0)
+	for rows.Next() {
+		var entry AuditEntry
+		if err := rows.Scan(&entry.ID, &entry.ActorID, &entry.ActorName, &entry.Action, &entry.OldValue, &entry.NewValue, &entry.CreatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, entry)
+	}
+	return result, rows.Err()
 }
 
 const taskSelect = `

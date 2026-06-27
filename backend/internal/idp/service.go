@@ -95,6 +95,7 @@ type StatusInput struct {
 type AuditEntry struct {
 	ID        string          `json:"id"`
 	ActorID   *string         `json:"actor_id,omitempty"`
+	ActorName string          `json:"actor_name"`
 	Action    string          `json:"action"`
 	OldValue  json.RawMessage `json:"old_value,omitempty"`
 	NewValue  json.RawMessage `json:"new_value,omitempty"`
@@ -388,10 +389,13 @@ func (s *Service) Audit(ctx context.Context, access Access, id string) ([]AuditE
 	}
 
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, actor_id::text, action, old_value, new_value, created_at
-		FROM audit_logs
-		WHERE entity_type = 'idp' AND entity_id = $1
-		ORDER BY created_at, id
+		SELECT a.id::text, a.actor_id::text,
+			COALESCE(concat_ws(' ', u.last_name, u.first_name, u.middle_name), ''),
+			a.action, a.old_value, a.new_value, a.created_at
+		FROM audit_logs a
+		LEFT JOIN users u ON u.id=a.actor_id
+		WHERE a.entity_type = 'idp' AND a.entity_id = $1
+		ORDER BY a.created_at, a.id
 	`, id)
 	if err != nil {
 		return nil, err
@@ -401,7 +405,7 @@ func (s *Service) Audit(ctx context.Context, access Access, id string) ([]AuditE
 	result := make([]AuditEntry, 0)
 	for rows.Next() {
 		var entry AuditEntry
-		if err := rows.Scan(&entry.ID, &entry.ActorID, &entry.Action, &entry.OldValue, &entry.NewValue, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.ActorID, &entry.ActorName, &entry.Action, &entry.OldValue, &entry.NewValue, &entry.CreatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, entry)
