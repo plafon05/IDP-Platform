@@ -50,8 +50,16 @@ export type TaskProgressPayload = {
   self_comment?: string;
 };
 
-export async function listTasks(idpID: string) {
-  const response = await api.get<IDPTask[]>(`/api/v1/idps/${idpID}/tasks`);
+export type TaskFilters = {
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  competencyId?: string;
+  sort?: 'due_date' | 'priority' | 'status';
+  order?: 'asc' | 'desc';
+};
+
+export async function listTasks(idpID: string, filters: TaskFilters = {}) {
+  const response = await api.get<IDPTask[]>(`/api/v1/idps/${idpID}/tasks`, { params: filters });
   return response.data;
 }
 

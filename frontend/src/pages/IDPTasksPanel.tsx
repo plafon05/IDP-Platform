@@ -1,4 +1,4 @@
-import { Activity, Check, Edit3, ExternalLink, MessageSquare, Plus, Save, Trash2, X } from 'lucide-react';
+import { Activity, Check, Edit3, ExternalLink, MessageSquare, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import { listTags, listTaskCategories, type NamedCatalogItem } from '../shared/api/catalog';
 import { CommentsThread } from '../components/CommentsThread';
@@ -16,6 +16,7 @@ import {
   type TaskRating,
   type TaskResource,
   type TaskStatus,
+  type TaskFilters,
 } from '../shared/api/tasks';
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -55,22 +56,16 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
   const [showIDPAudit, setShowIDPAudit] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<TaskFilters>({ sort: 'due_date', order: 'asc' });
 
   const editable = canManage && (plan.status === 'draft' || plan.status === 'active');
   const canReport = isEmployee && plan.status === 'active';
 
-  async function load() {
+  async function loadTasks() {
     setBusy(true);
     setError(null);
     try {
-      const [taskResult, categoryResult, tagResult] = await Promise.all([
-        listTasks(plan.id),
-        editable ? listTaskCategories() : Promise.resolve([]),
-        editable ? listTags() : Promise.resolve([]),
-      ]);
-      setTasks(taskResult);
-      setCategories(categoryResult);
-      setTags(tagResult);
+      setTasks(await listTasks(plan.id, filters));
     } catch {
       setError('Не удалось загрузить задачи');
     } finally {
@@ -78,7 +73,18 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
     }
   }
 
-  useEffect(() => { void load(); }, [plan.id]);
+  useEffect(() => { void loadTasks(); }, [plan.id, filters.status, filters.priority, filters.competencyId, filters.sort, filters.order]);
+
+  useEffect(() => {
+    if (!editable) {
+      setCategories([]);
+      setTags([]);
+      return;
+    }
+    void Promise.all([listTaskCategories(), listTags()])
+      .then(([categoryResult, tagResult]) => { setCategories(categoryResult); setTags(tagResult); })
+      .catch(() => setError('Не удалось загрузить справочники задач'));
+  }, [plan.id, editable]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -97,7 +103,7 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
       if (editingID) await updateTask(editingID, payload);
       else await createTask(plan.id, payload);
       closeForm();
-      await Promise.all([load(), onChanged()]);
+      await Promise.all([loadTasks(), onChanged()]);
     } catch {
       setError('Не удалось сохранить задачу. Проверьте даты, ссылки и выбранные справочники.');
       setBusy(false);
@@ -121,7 +127,7 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
     setBusy(true);
     try {
       await deleteTask(task.id);
-      await Promise.all([load(), onChanged()]);
+      await Promise.all([loadTasks(), onChanged()]);
     } catch {
       setError('Не удалось удалить задачу');
       setBusy(false);
@@ -133,7 +139,7 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
     setError(null);
     try {
       await updateTaskProgress(task.id, { status, progress, self_rating: selfRating, self_comment: selfComment });
-      await Promise.all([load(), onChanged()]);
+      await Promise.all([loadTasks(), onChanged()]);
     } catch {
       setError('Не удалось обновить прогресс');
       setBusy(false);
@@ -168,6 +174,13 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
         )}
       </div>
       {error && <div className="form-error">{error}</div>}
+      <div className="task-filters" aria-label="Фильтры задач">
+        <label><span>Статус</span><select value={filters.status ?? ''} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as TaskStatus || undefined }))}><option value="">Все</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label><span>Приоритет</span><select value={filters.priority ?? ''} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as TaskPriority || undefined }))}><option value="">Все</option><option value="high">Высокий</option><option value="medium">Средний</option><option value="low">Низкий</option></select></label>
+        <label><span>Компетенция</span><select value={filters.competencyId ?? ''} onChange={(event) => setFilters((current) => ({ ...current, competencyId: event.target.value || undefined }))}><option value="">Все</option>{plan.competencies.map((item) => <option key={item.competency_id} value={item.competency_id}>{item.name ?? item.competency_id}</option>)}</select></label>
+        <label><span>Сортировка</span><select value={`${filters.sort}:${filters.order}`} onChange={(event) => { const [sort, order] = event.target.value.split(':') as [TaskFilters['sort'], TaskFilters['order']]; setFilters((current) => ({ ...current, sort, order })); }}><option value="due_date:asc">Срок: сначала ближайшие</option><option value="due_date:desc">Срок: сначала поздние</option><option value="priority:asc">Сначала высокий приоритет</option><option value="status:asc">По статусу</option></select></label>
+        <button className="icon-button" type="button" title="Сбросить фильтры" aria-label="Сбросить фильтры" onClick={() => setFilters({ sort: 'due_date', order: 'asc' })}><RotateCcw size={17} /></button>
+      </div>
       {!busy && tasks.length === 0 && <div className="task-empty">Задач пока нет</div>}
 
       <div className="task-list" aria-busy={busy}>
