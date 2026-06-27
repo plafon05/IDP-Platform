@@ -31,6 +31,13 @@ type Config struct {
 	ReadTimeout        time.Duration
 	WriteTimeout       time.Duration
 	IdleTimeout        time.Duration
+	SMTPHost           string
+	SMTPPort           int
+	SMTPUsername       string
+	SMTPPassword       string
+	SMTPFromEmail      string
+	SMTPFromName       string
+	EmailQueueKey      string
 }
 
 func Load() Config {
@@ -58,6 +65,13 @@ func Load() Config {
 		ReadTimeout:        secondsEnv("HTTP_READ_TIMEOUT_SECONDS", 10),
 		WriteTimeout:       secondsEnv("HTTP_WRITE_TIMEOUT_SECONDS", 15),
 		IdleTimeout:        secondsEnv("HTTP_IDLE_TIMEOUT_SECONDS", 60),
+		SMTPHost:           env("SMTP_HOST", "mailpit"),
+		SMTPPort:           intEnv("SMTP_PORT", 1025),
+		SMTPUsername:       env("SMTP_USERNAME", ""),
+		SMTPPassword:       env("SMTP_PASSWORD", ""),
+		SMTPFromEmail:      env("SMTP_FROM_EMAIL", "noreply@idp.local"),
+		SMTPFromName:       env("SMTP_FROM_NAME", "IDP Platform"),
+		EmailQueueKey:      env("EMAIL_QUEUE_KEY", "idp:email:queue"),
 	}
 }
 
@@ -89,6 +103,15 @@ func secondsEnv(key string, fallback int) time.Duration {
 	}
 
 	return time.Duration(value) * time.Second
+}
+
+func intEnv(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func durationEnv(key string, fallback time.Duration) time.Duration {

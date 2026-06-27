@@ -40,6 +40,11 @@ services:
     volumes:
       - minio_data:/data
 
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+
   backend:
     image: ${BACKEND_IMAGE:-idp-platform-backend:local}
     build:
@@ -65,6 +70,26 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_started
+
+  email-worker:
+    image: ${BACKEND_IMAGE:-idp-platform-backend:local}
+    build:
+      context: ./backend
+    entrypoint: ["/app/email-worker"]
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      EMAIL_QUEUE_KEY: ${EMAIL_QUEUE_KEY:-idp:email:queue}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@idp.local}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-IDP Platform}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailpit:
         condition: service_started
 
   frontend:

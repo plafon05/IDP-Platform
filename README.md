@@ -7,7 +7,7 @@
 - `backend` — Go API по Clean Architecture.
 - `frontend` — React + TypeScript + Vite SPA.
 - `backend/migrations` — SQL-миграции PostgreSQL для goose.
-- `docker-compose.yml` — локальный контур PostgreSQL, Redis, MinIO, backend, frontend.
+- `docker-compose.yml` — локальный контур приложения и инфраструктуры.
 
 ## Локальный запуск
 
@@ -21,6 +21,7 @@ docker compose up --build
 - API health: `http://localhost:8080/health`
 - API ready: `http://localhost:8080/ready`
 - Frontend через контейнер: `http://localhost:3000`
+- Mailpit для просмотра development-писем: `http://localhost:8025`
 
 Для разработки фронтенда с HMR:
 
@@ -38,14 +39,6 @@ go mod download
 go run ./cmd/server
 ```
 
-## Текущий статус
+## Email в development
 
-Первая итерация создаёт фундамент проекта:
-
-- базовый Go HTTP-сервер с graceful shutdown;
-- endpoints `/health`, `/ready`, `/api/v1/health`, `/api/v1/ready`;
-- единый JSON-формат ошибок;
-- CORS для локального фронтенда;
-- начальная PostgreSQL-схема по ТЗ;
-- первый экран React-приложения с дашбордом;
-- Docker Compose для локальной инфраструктуры.
+API ставит письма в Redis, а отдельный `email-worker` отправляет их через SMTP. Mailpit перехватывает письма локально и не отправляет их реальным получателям. Параметры SMTP и имя очереди задаются в `.env`.
