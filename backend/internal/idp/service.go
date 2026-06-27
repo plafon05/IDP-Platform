@@ -578,6 +578,7 @@ func validateInput(input Input) error {
 	if strings.TrimSpace(input.EmployeeID) == "" ||
 		strings.TrimSpace(input.Title) == "" ||
 		len([]rune(strings.TrimSpace(input.Title))) > 300 ||
+		(input.Goals != nil && len([]rune(*input.Goals)) > 10000) ||
 		input.StartDate.IsZero() ||
 		input.EndDate.IsZero() ||
 		input.EndDate.Before(input.StartDate) {

@@ -69,4 +69,11 @@ func TestValidateInput(t *testing.T) {
 	if err := validateInput(invalidPeriod); err != ErrInvalidInput {
 		t.Fatalf("invalid period error = %v, want %v", err, ErrInvalidInput)
 	}
+
+	tooLong := valid
+	goals := string(make([]rune, 10001))
+	tooLong.Goals = &goals
+	if err := validateInput(tooLong); err != ErrInvalidInput {
+		t.Fatalf("long goals error = %v, want %v", err, ErrInvalidInput)
+	}
 }
