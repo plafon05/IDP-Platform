@@ -1,7 +1,8 @@
-import { Check, Edit3, ExternalLink, MessageSquare, Plus, Save, Trash2, X } from 'lucide-react';
+import { Activity, Check, Edit3, ExternalLink, MessageSquare, Plus, Save, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import { listTags, listTaskCategories, type NamedCatalogItem } from '../shared/api/catalog';
 import { CommentsThread } from '../components/CommentsThread';
+import { AuditTrail } from '../components/AuditTrail';
 import type { IDP } from '../shared/api/idps';
 import {
   createTask,
@@ -50,6 +51,8 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
   const [editingID, setEditingID] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [commentTaskID, setCommentTaskID] = useState<string | null>(null);
+  const [auditTaskID, setAuditTaskID] = useState<string | null>(null);
+  const [showIDPAudit, setShowIDPAudit] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -204,11 +207,13 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
             )}
             <div className="row-actions">
               <button className="secondary-button compact" type="button" onClick={() => setCommentTaskID(commentTaskID === task.id ? null : task.id)}><MessageSquare size={16} />Комментарии</button>
+              <button className="icon-button" type="button" title="История изменений" aria-label="История изменений" onClick={() => setAuditTaskID(auditTaskID === task.id ? null : task.id)}><Activity size={17} /></button>
               {canReport && <ProgressEditor task={task} disabled={busy} onSave={report} />}
               {editable && <button className="icon-button" type="button" title="Редактировать" aria-label="Редактировать" onClick={() => edit(task)}><Edit3 size={17} /></button>}
               {editable && <button className="icon-button danger" type="button" title="Удалить" aria-label="Удалить" onClick={() => void remove(task)}><Trash2 size={17} /></button>}
             </div>
             {commentTaskID === task.id && <CommentsThread entityType="task" entityID={task.id} title="Комментарии к задаче" />}
+            {auditTaskID === task.id && <AuditTrail entityType="task" entityID={task.id} title="История задачи" />}
           </div>
         ))}
       </div>
@@ -234,6 +239,11 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
         </form>
       )}
       <CommentsThread entityType="idp" entityID={plan.id} title="Комментарии к ИПР" />
+      <div className="task-panel-heading">
+        <strong>История ИПР</strong>
+        <button className="secondary-button compact" type="button" onClick={() => setShowIDPAudit((value) => !value)}><Activity size={16} />{showIDPAudit ? 'Скрыть' : 'Показать'}</button>
+      </div>
+      {showIDPAudit && <AuditTrail entityType="idp" entityID={plan.id} />}
     </div>
   );
 }

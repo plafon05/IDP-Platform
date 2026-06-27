@@ -1174,6 +1174,41 @@ main {
   resize: vertical;
 }
 
+.audit-trail,
+.audit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.audit-trail {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
+.audit-entry {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.audit-marker {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border: 2px solid #2563eb;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.audit-entry > div {
+  display: grid;
+  gap: 2px;
+}
+
+.audit-entry strong { color: #334155; font-size: 13px; }
+.audit-entry span { color: #475569; font-size: 13px; }
+.audit-entry small { color: #94a3b8; font-size: 12px; }
+
 .empty-state {
   border: 1px dashed #cbd5e1;
   border-radius: 8px;
