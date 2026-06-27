@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/config"
+	"idp-platform/backend/internal/notification"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,8 +29,9 @@ var (
 )
 
 type Service struct {
-	cfg config.Config
-	db  *pgxpool.Pool
+	cfg       config.Config
+	db        *pgxpool.Pool
+	publisher notification.Publisher
 }
 
 type User struct {
@@ -66,8 +68,8 @@ type PasswordResetRequest struct {
 	ExpiresAt     *time.Time
 }
 
-func NewService(cfg config.Config, db *pgxpool.Pool) *Service {
-	return &Service{cfg: cfg, db: db}
+func NewService(cfg config.Config, db *pgxpool.Pool, publisher notification.Publisher) *Service {
+	return &Service{cfg: cfg, db: db, publisher: publisher}
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (*TokenPair, error) {
@@ -161,8 +163,17 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) (*Pass
 	}
 
 	result := &PasswordResetRequest{ExpiresAt: &expiresAt}
+	resetURL := strings.TrimRight(s.cfg.FrontendURL, "/") + "/reset-password?token=" + token
+	if s.publisher != nil {
+		if err := s.publisher.Enqueue(ctx, notification.Job{
+			To: []string{user.Email}, Template: notification.PasswordResetTemplate,
+			Data: map[string]string{"reset_url": resetURL, "first_name": user.FirstName},
+		}); err != nil {
+			_, _ = s.db.Exec(ctx, `DELETE FROM password_reset_tokens WHERE token_hash=$1`, tokenHash)
+			return nil, err
+		}
+	}
 	if s.cfg.AppEnv == "development" {
-		resetURL := strings.TrimRight(s.cfg.FrontendURL, "/") + "/reset-password?token=" + token
 		result.DevResetToken = &token
 		result.DevResetURL = &resetURL
 	}

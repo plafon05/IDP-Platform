@@ -78,7 +78,7 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	f.reset(t)
 	defer f.reset(t)
 	f.seed(t)
-	f.router = handler.NewRouter(cfg, db, nil)
+	f.router = handler.NewRouter(cfg, db, nil, nil)
 
 	employeeToken := f.token(t, f.employeeID, "employee")
 	managerToken := f.token(t, f.managerID, "employee", "manager")

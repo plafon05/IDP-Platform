@@ -15,6 +15,7 @@ import (
 	"idp-platform/backend/internal/database"
 	"idp-platform/backend/internal/handler"
 	"idp-platform/backend/internal/migrations"
+	"idp-platform/backend/internal/notification"
 	appserver "idp-platform/backend/internal/server"
 	"idp-platform/backend/internal/storage"
 )
@@ -48,7 +49,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := handler.NewRouter(cfg, dbPool, avatarStore)
+	emailQueue, err := notification.NewQueue(cfg.RedisURL, cfg.EmailQueueKey)
+	if err != nil {
+		slog.Error("email queue initialization failed", "error", err)
+		os.Exit(1)
+	}
+	defer emailQueue.Close()
+	queueCtx, queueCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := emailQueue.Ping(queueCtx); err != nil {
+		queueCancel()
+		slog.Error("email queue unavailable", "error", err)
+		os.Exit(1)
+	}
+	queueCancel()
+
+	router := handler.NewRouter(cfg, dbPool, avatarStore, emailQueue)
 	server := appserver.NewHTTPServer(cfg, router)
 
 	errCh := make(chan error, 1)

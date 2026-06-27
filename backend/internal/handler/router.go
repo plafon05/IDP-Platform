@@ -13,15 +13,16 @@ import (
 	"idp-platform/backend/internal/dashboard"
 	"idp-platform/backend/internal/httpjson"
 	"idp-platform/backend/internal/idp"
+	"idp-platform/backend/internal/notification"
 	"idp-platform/backend/internal/tasks"
 	"idp-platform/backend/internal/users"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore) http.Handler {
+func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore, publisher notification.Publisher) http.Handler {
 	mux := http.NewServeMux()
-	authService := auth.NewService(cfg, dbPool)
+	authService := auth.NewService(cfg, dbPool, publisher)
 	authHandlers := authHandler{cfg: cfg, service: authService}
 	usersHandlers := usersHandler{service: users.NewService(dbPool), avatarStore: avatarStore}
 	catalogHandlers := catalogHandler{service: catalog.NewService(dbPool)}
