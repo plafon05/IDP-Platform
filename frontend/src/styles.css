@@ -917,6 +917,70 @@ main {
   background: #e2e8f0;
 }
 
+.markdown-editor {
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.markdown-toolbar {
+  display: grid;
+  grid-template-columns: repeat(4, 32px) minmax(0, 1fr) 32px;
+  gap: 4px;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 6px;
+  background: #f8fafc;
+}
+
+.markdown-toolbar .icon-button {
+  width: 32px;
+  height: 32px;
+}
+
+.markdown-toolbar .icon-button.active {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.form-field .markdown-editor textarea {
+  width: 100%;
+  min-height: 150px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.markdown-preview {
+  min-height: 150px;
+  padding: 12px;
+  color: #334155;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview > :first-child,
+.idp-goals > :first-child { margin-top: 0; }
+.markdown-preview > :last-child,
+.idp-goals > :last-child { margin-bottom: 0; }
+.markdown-preview a,
+.idp-goals a { color: #1d4ed8; }
+
+.idp-goals {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+  color: #475569;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.idp-goals > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #334155;
+}
+
 .idp-row {
   display: grid;
   gap: 12px;

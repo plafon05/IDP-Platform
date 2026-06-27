@@ -15,6 +15,7 @@ import {
 } from '../shared/api/idps';
 import { listSubordinates, listUsers, type User } from '../shared/api/users';
 import { IDPTasksPanel } from './IDPTasksPanel';
+import { MarkdownContent, MarkdownEditor } from '../components/MarkdownEditor';
 
 const statusLabels: Record<IDPStatus, string> = {
   draft: 'Черновик',
@@ -360,12 +361,15 @@ export function IDPsPage() {
                   )}
                 </div>
                 {expandedPlan?.id === plan.id && (
-                  <IDPTasksPanel
-                    plan={expandedPlan}
-                    canManage={canManagePlan}
-                    isEmployee={currentUser?.id === expandedPlan.employee_id}
-                    onChanged={load}
-                  />
+                  <>
+                    {expandedPlan.goals && <div className="idp-goals"><strong>Цели ИПР</strong><MarkdownContent value={expandedPlan.goals} /></div>}
+                    <IDPTasksPanel
+                      plan={expandedPlan}
+                      canManage={canManagePlan}
+                      isEmployee={currentUser?.id === expandedPlan.employee_id}
+                      onChanged={load}
+                    />
+                  </>
                 )}
               </article>
             })}
@@ -409,10 +413,7 @@ export function IDPsPage() {
             </label>
             <label className="form-field">
               <span>Цели</span>
-              <textarea
-                onChange={(event) => setForm((current) => ({ ...current, goals: event.target.value }))}
-                value={form.goals}
-              />
+              <MarkdownEditor value={form.goals} onChange={(goals) => setForm((current) => ({ ...current, goals }))} />
             </label>
             <div className="form-grid">
               <label className="form-field">
