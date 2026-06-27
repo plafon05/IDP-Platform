@@ -155,10 +155,11 @@ export function IDPsPage() {
     let comment: string | undefined;
     let reason: string | undefined;
     if (next === 'completed') {
-      comment = window.prompt('Финальный комментарий руководителя')?.trim();
-      if (!comment) {
+      const result = window.prompt('Финальный комментарий (необязательно)');
+      if (result === null) {
         return;
       }
+      comment = result.trim() || undefined;
     }
     if (next === 'cancelled') {
       reason = window.prompt('Причина отмены ИПР')?.trim();
