@@ -219,14 +219,44 @@ func (s *Service) management(ctx context.Context, access idp.Access) (*Managemen
 		result.TaskStatuses[status] = count
 	}
 	statusRows.Close()
-	attentionRows, err := s.db.Query(ctx, `SELECT u.id::text,concat_ws(' ',u.last_name,u.first_name),COUNT(t.id)::int FROM users u JOIN idps i ON i.employee_id=u.id AND i.status='active' JOIN tasks t ON t.idp_id=i.id AND t.deleted_at IS NULL WHERE t.due_date<CURRENT_DATE AND t.status NOT IN('completed','cancelled') AND ($1 OR i.manager_id=$2) GROUP BY u.id ORDER BY COUNT(t.id) DESC`, access.IsHR, access.UserID)
+	attentionRows, err := s.db.Query(ctx, `
+		WITH plan_stats AS (
+			SELECT i.employee_id,
+				(
+					SELECT COUNT(*)::int FROM tasks overdue
+					WHERE overdue.idp_id=i.id AND overdue.deleted_at IS NULL
+						AND overdue.due_date<CURRENT_DATE AND overdue.status NOT IN('completed','cancelled')
+				) overdue_count,
+				GREATEST(
+					i.updated_at,
+					COALESCE((SELECT MAX(t.updated_at) FROM tasks t WHERE t.idp_id=i.id),i.updated_at),
+					COALESCE((SELECT MAX(c.updated_at) FROM comments c WHERE
+						(c.entity_type='idp' AND c.entity_id=i.id) OR
+						(c.entity_type='task' AND c.entity_id IN(SELECT t.id FROM tasks t WHERE t.idp_id=i.id))
+					),i.updated_at)
+				) last_activity
+			FROM idps i
+			WHERE i.status='active' AND i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
+		), employee_stats AS (
+			SELECT employee_id,SUM(overdue_count)::int overdue_count,
+				BOOL_OR(last_activity<NOW()-INTERVAL '14 days') inactive
+			FROM plan_stats GROUP BY employee_id
+		)
+		SELECT u.id::text,concat_ws(' ',u.last_name,u.first_name),
+			concat_ws(' и ',
+				CASE WHEN s.overdue_count>0 THEN 'Просроченные задачи' END,
+				CASE WHEN s.inactive THEN 'Нет активности более 14 дней' END
+			),s.overdue_count
+		FROM employee_stats s JOIN users u ON u.id=s.employee_id
+		WHERE s.overdue_count>0 OR s.inactive
+		ORDER BY s.inactive DESC,s.overdue_count DESC,u.last_name,u.first_name
+	`, access.IsHR, access.UserID)
 	if err != nil {
 		return nil, err
 	}
 	for attentionRows.Next() {
 		var x AttentionItem
-		x.Reason = "Просроченные задачи"
-		if err := attentionRows.Scan(&x.EmployeeID, &x.EmployeeName, &x.Count); err != nil {
+		if err := attentionRows.Scan(&x.EmployeeID, &x.EmployeeName, &x.Reason, &x.Count); err != nil {
 			attentionRows.Close()
 			return nil, err
 		}
