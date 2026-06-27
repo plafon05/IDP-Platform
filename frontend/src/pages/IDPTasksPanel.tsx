@@ -1,6 +1,7 @@
-import { Check, Edit3, ExternalLink, Plus, Save, Trash2, X } from 'lucide-react';
+import { Check, Edit3, ExternalLink, MessageSquare, Plus, Save, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import { listTags, listTaskCategories, type NamedCatalogItem } from '../shared/api/catalog';
+import { CommentsThread } from '../components/CommentsThread';
 import type { IDP } from '../shared/api/idps';
 import {
   createTask,
@@ -48,6 +49,7 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
   const [form, setForm] = useState<TaskPayload>(emptyForm);
   const [editingID, setEditingID] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [commentTaskID, setCommentTaskID] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,10 +203,12 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
               </div>
             )}
             <div className="row-actions">
+              <button className="secondary-button compact" type="button" onClick={() => setCommentTaskID(commentTaskID === task.id ? null : task.id)}><MessageSquare size={16} />Комментарии</button>
               {canReport && <ProgressEditor task={task} disabled={busy} onSave={report} />}
               {editable && <button className="icon-button" type="button" title="Редактировать" aria-label="Редактировать" onClick={() => edit(task)}><Edit3 size={17} /></button>}
               {editable && <button className="icon-button danger" type="button" title="Удалить" aria-label="Удалить" onClick={() => void remove(task)}><Trash2 size={17} /></button>}
             </div>
+            {commentTaskID === task.id && <CommentsThread entityType="task" entityID={task.id} title="Комментарии к задаче" />}
           </div>
         ))}
       </div>
@@ -229,6 +233,7 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
           <div className="button-row"><button className="primary-button" disabled={busy} type="submit"><Save size={17} /> Сохранить</button><button className="secondary-button" type="button" onClick={closeForm}><X size={17} /> Отмена</button></div>
         </form>
       )}
+      <CommentsThread entityType="idp" entityID={plan.id} title="Комментарии к ИПР" />
     </div>
   );
 }
