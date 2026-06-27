@@ -10,6 +10,7 @@ import (
 	"idp-platform/backend/internal/catalog"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/httpjson"
+	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/users"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,6 +22,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	authHandlers := authHandler{cfg: cfg, service: authService}
 	usersHandlers := usersHandler{service: users.NewService(dbPool), avatarStore: avatarStore}
 	catalogHandlers := catalogHandler{service: catalog.NewService(dbPool)}
+	idpHandlers := idpHandler{service: idp.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -56,6 +58,13 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	mux.Handle("POST /api/v1/tags", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.createTag))))
 	mux.Handle("PUT /api/v1/tags/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.updateTag))))
 	mux.Handle("DELETE /api/v1/tags/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(catalogHandlers.deleteTag))))
+	mux.Handle("GET /api/v1/idps", authMiddleware(cfg, http.HandlerFunc(idpHandlers.list)))
+	mux.Handle("POST /api/v1/idps", authMiddleware(cfg, http.HandlerFunc(idpHandlers.create)))
+	mux.Handle("GET /api/v1/idps/{id}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.get)))
+	mux.Handle("PUT /api/v1/idps/{id}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.update)))
+	mux.Handle("PATCH /api/v1/idps/{id}/status", authMiddleware(cfg, http.HandlerFunc(idpHandlers.changeStatus)))
+	mux.Handle("DELETE /api/v1/idps/{id}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.archive)))
+	mux.Handle("GET /api/v1/idps/{id}/audit", authMiddleware(cfg, http.HandlerFunc(idpHandlers.audit)))
 
 	notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")
