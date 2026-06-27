@@ -53,3 +53,28 @@ func TestEditablePlan(t *testing.T) {
 		t.Fatal("closed plans must not be editable")
 	}
 }
+
+func TestManagerCannotChangeProgress(t *testing.T) {
+	input := Input{Status: "completed", Progress: 100}
+	created := normalizeNewTask(input)
+	if created.Status != "not_started" || created.Progress != 0 {
+		t.Fatal("new task progress must be reset")
+	}
+
+	current := &Task{Status: "in_progress", Progress: 40}
+	updated, err := normalizeManagerUpdate(current, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != "in_progress" || updated.Progress != 40 {
+		t.Fatal("manager update must preserve employee progress")
+	}
+}
+
+func TestManagerReviewOnlyForCompletedTask(t *testing.T) {
+	rating := "met"
+	_, err := normalizeManagerUpdate(&Task{Status: "in_progress"}, Input{ManagerRating: &rating})
+	if err != ErrInvalidInput {
+		t.Fatal("review before completion must be rejected")
+	}
+}

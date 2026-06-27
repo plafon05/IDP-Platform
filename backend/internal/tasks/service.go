@@ -151,9 +151,7 @@ func (s *Service) Create(ctx context.Context, access idp.Access, idpID string, i
 	if !editablePlan(plan.Status) {
 		return nil, ErrIDPState
 	}
-	if input.Status == "" {
-		input.Status = "not_started"
-	}
+	input = normalizeNewTask(input)
 	if input.Priority == "" {
 		input.Priority = "medium"
 	}
@@ -203,6 +201,10 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 	if !editablePlan(plan.Status) {
 		return nil, ErrIDPState
 	}
+	input, err = normalizeManagerUpdate(current, input)
+	if err != nil {
+		return nil, err
+	}
 	if err := validateInput(input, plan); err != nil {
 		return nil, err
 	}
@@ -217,10 +219,10 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 	}
 	_, err = tx.Exec(ctx, `
 		UPDATE tasks SET title=$2, description=$3, category_id=$4, priority=$5, due_date=$6,
-			status=$7, progress=$8, manager_rating=$9, manager_comment=$10, updated_at=NOW()
+			manager_rating=$7, manager_comment=$8, updated_at=NOW()
 		WHERE id=$1 AND deleted_at IS NULL
 	`, taskID, strings.TrimSpace(input.Title), trimmed(input.Description), trimmed(input.CategoryID), input.Priority,
-		input.DueDate, input.Status, input.Progress, trimmed(input.ManagerRating), trimmed(input.ManagerComment))
+		input.DueDate, trimmed(input.ManagerRating), trimmed(input.ManagerComment))
 	if err != nil {
 		return nil, err
 	}
@@ -549,6 +551,23 @@ func validStatus(v string) bool {
 }
 func validRating(v *string) bool {
 	return v == nil || oneOf(strings.TrimSpace(*v), "met", "partially_met", "not_met")
+}
+
+func normalizeNewTask(input Input) Input {
+	input.Status = "not_started"
+	input.Progress = 0
+	input.ManagerRating = nil
+	input.ManagerComment = nil
+	return input
+}
+
+func normalizeManagerUpdate(current *Task, input Input) (Input, error) {
+	input.Status = current.Status
+	input.Progress = current.Progress
+	if current.Status != "completed" && (input.ManagerRating != nil || input.ManagerComment != nil) {
+		return Input{}, ErrInvalidInput
+	}
+	return input, nil
 }
 func oneOf(value string, allowed ...string) bool {
 	for _, item := range allowed {
