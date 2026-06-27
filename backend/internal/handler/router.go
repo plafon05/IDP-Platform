@@ -8,6 +8,7 @@ import (
 
 	"idp-platform/backend/internal/auth"
 	"idp-platform/backend/internal/catalog"
+	"idp-platform/backend/internal/comments"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/httpjson"
 	"idp-platform/backend/internal/idp"
@@ -25,6 +26,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	catalogHandlers := catalogHandler{service: catalog.NewService(dbPool)}
 	idpHandlers := idpHandler{service: idp.NewService(dbPool)}
 	taskHandlers := tasksHandler{service: tasks.NewService(dbPool)}
+	commentHandlers := commentsHandler{service: comments.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -73,6 +75,12 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore)
 	mux.Handle("PUT /api/v1/tasks/{id}", authMiddleware(cfg, http.HandlerFunc(taskHandlers.update)))
 	mux.Handle("PATCH /api/v1/tasks/{id}/progress", authMiddleware(cfg, http.HandlerFunc(taskHandlers.updateProgress)))
 	mux.Handle("DELETE /api/v1/tasks/{id}", authMiddleware(cfg, http.HandlerFunc(taskHandlers.delete)))
+	mux.Handle("GET /api/v1/idps/{id}/comments", authMiddleware(cfg, http.HandlerFunc(commentHandlers.listIDP)))
+	mux.Handle("POST /api/v1/idps/{id}/comments", authMiddleware(cfg, http.HandlerFunc(commentHandlers.createIDP)))
+	mux.Handle("GET /api/v1/tasks/{id}/comments", authMiddleware(cfg, http.HandlerFunc(commentHandlers.listTask)))
+	mux.Handle("POST /api/v1/tasks/{id}/comments", authMiddleware(cfg, http.HandlerFunc(commentHandlers.createTask)))
+	mux.Handle("PUT /api/v1/comments/{id}", authMiddleware(cfg, http.HandlerFunc(commentHandlers.update)))
+	mux.Handle("DELETE /api/v1/comments/{id}", authMiddleware(cfg, http.HandlerFunc(commentHandlers.delete)))
 
 	notFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")

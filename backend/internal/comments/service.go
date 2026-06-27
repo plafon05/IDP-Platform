@@ -1,0 +1,259 @@
+package comments
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"time"
+
+	"idp-platform/backend/internal/idp"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const editWindow = 10 * time.Minute
+
+var (
+	ErrNotFound     = errors.New("comment or entity not found")
+	ErrForbidden    = errors.New("comment access forbidden")
+	ErrInvalidInput = errors.New("invalid comment input")
+	ErrEditExpired  = errors.New("comment edit window expired")
+)
+
+type Service struct{ db *pgxpool.Pool }
+
+type Comment struct {
+	ID           string    `json:"id"`
+	EntityType   string    `json:"entity_type"`
+	EntityID     string    `json:"entity_id"`
+	AuthorID     string    `json:"author_id"`
+	AuthorName   string    `json:"author_name"`
+	AuthorAvatar *string   `json:"author_avatar,omitempty"`
+	Content      string    `json:"content"`
+	IsDeleted    bool      `json:"is_deleted"`
+	CanEdit      bool      `json:"can_edit"`
+	CanDelete    bool      `json:"can_delete"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type entityAccess struct {
+	EmployeeID string
+	ManagerID  string
+}
+
+func NewService(db *pgxpool.Pool) *Service { return &Service{db: db} }
+
+func (s *Service) List(ctx context.Context, access idp.Access, entityType, entityID string) ([]Comment, error) {
+	entity, err := s.entity(ctx, entityType, entityID)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, entity) {
+		return nil, ErrForbidden
+	}
+	rows, err := s.db.Query(ctx, `
+		SELECT c.id::text, c.entity_type, c.entity_id::text, c.author_id::text,
+			concat_ws(' ', u.last_name, u.first_name, u.middle_name), u.avatar_url,
+			c.content, c.is_deleted, c.created_at, c.updated_at
+		FROM comments c JOIN users u ON u.id=c.author_id
+		WHERE c.entity_type=$1 AND c.entity_id=$2
+		ORDER BY c.created_at, c.id
+	`, entityType, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]Comment, 0)
+	for rows.Next() {
+		item, err := scanComment(rows, access.UserID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (s *Service) Create(ctx context.Context, access idp.Access, entityType, entityID, content string) (*Comment, error) {
+	content = strings.TrimSpace(content)
+	if !validContent(content) {
+		return nil, ErrInvalidInput
+	}
+	entity, err := s.entity(ctx, entityType, entityID)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, entity) {
+		return nil, ErrForbidden
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var id string
+	if err := tx.QueryRow(ctx, `INSERT INTO comments (author_id, entity_type, entity_id, content)
+		VALUES ($1,$2,$3,$4) RETURNING id::text`, access.UserID, entityType, entityID, content).Scan(&id); err != nil {
+		return nil, err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, id, "comment.created", nil, map[string]any{"entity_type": entityType, "entity_id": entityID, "content": content}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.get(ctx, access, id)
+}
+
+func (s *Service) Update(ctx context.Context, access idp.Access, id, content string) (*Comment, error) {
+	content = strings.TrimSpace(content)
+	if !validContent(content) {
+		return nil, ErrInvalidInput
+	}
+	current, entity, err := s.getWithEntity(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, entity) || current.AuthorID != access.UserID || current.IsDeleted {
+		return nil, ErrForbidden
+	}
+	if time.Since(current.CreatedAt) > editWindow {
+		return nil, ErrEditExpired
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `UPDATE comments SET content=$2, updated_at=NOW() WHERE id=$1 AND is_deleted=false`, id, content); err != nil {
+		return nil, err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, id, "comment.updated", map[string]string{"content": current.Content}, map[string]string{"content": content}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.get(ctx, access, id)
+}
+
+func (s *Service) Delete(ctx context.Context, access idp.Access, id string) error {
+	current, entity, err := s.getWithEntity(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !canRead(access, entity) || current.AuthorID != access.UserID || current.IsDeleted {
+		return ErrForbidden
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `UPDATE comments SET content='', is_deleted=true, updated_at=NOW() WHERE id=$1`, id); err != nil {
+		return err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, id, "comment.deleted", map[string]string{"content": current.Content}, nil); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *Service) get(ctx context.Context, access idp.Access, id string) (*Comment, error) {
+	item, entity, err := s.getWithEntity(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, entity) {
+		return nil, ErrForbidden
+	}
+	item.CanEdit = item.AuthorID == access.UserID && !item.IsDeleted && time.Since(item.CreatedAt) <= editWindow
+	item.CanDelete = item.AuthorID == access.UserID && !item.IsDeleted
+	if item.IsDeleted {
+		item.Content = "Комментарий удалён"
+	}
+	return item, nil
+}
+
+func (s *Service) getWithEntity(ctx context.Context, id string) (*Comment, *entityAccess, error) {
+	row := s.db.QueryRow(ctx, `
+		SELECT c.id::text, c.entity_type, c.entity_id::text, c.author_id::text,
+			concat_ws(' ', u.last_name, u.first_name, u.middle_name), u.avatar_url,
+			c.content, c.is_deleted, c.created_at, c.updated_at
+		FROM comments c JOIN users u ON u.id=c.author_id WHERE c.id=$1
+	`, id)
+	item, err := scanComment(row, "")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	entity, err := s.entity(ctx, item.EntityType, item.EntityID)
+	return &item, entity, err
+}
+
+func (s *Service) entity(ctx context.Context, entityType, entityID string) (*entityAccess, error) {
+	var item entityAccess
+	var err error
+	switch entityType {
+	case "idp":
+		err = s.db.QueryRow(ctx, `SELECT employee_id::text, manager_id::text FROM idps WHERE id=$1 AND archived_at IS NULL`, entityID).Scan(&item.EmployeeID, &item.ManagerID)
+	case "task":
+		err = s.db.QueryRow(ctx, `SELECT i.employee_id::text, i.manager_id::text FROM tasks t JOIN idps i ON i.id=t.idp_id WHERE t.id=$1 AND t.deleted_at IS NULL AND i.archived_at IS NULL`, entityID).Scan(&item.EmployeeID, &item.ManagerID)
+	default:
+		return nil, ErrInvalidInput
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &item, err
+}
+
+type rowScanner interface{ Scan(...any) error }
+
+func scanComment(row rowScanner, currentUserID string) (Comment, error) {
+	var item Comment
+	err := row.Scan(&item.ID, &item.EntityType, &item.EntityID, &item.AuthorID, &item.AuthorName,
+		&item.AuthorAvatar, &item.Content, &item.IsDeleted, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return item, err
+	}
+	item.CanEdit = item.AuthorID == currentUserID && !item.IsDeleted && time.Since(item.CreatedAt) <= editWindow
+	item.CanDelete = item.AuthorID == currentUserID && !item.IsDeleted
+	if item.IsDeleted {
+		item.Content = "Комментарий удалён"
+	}
+	return item, nil
+}
+
+func validContent(content string) bool {
+	length := len([]rune(content))
+	return length > 0 && length <= 5000
+}
+func canRead(access idp.Access, entity *entityAccess) bool {
+	return access.IsHR || access.UserID == entity.EmployeeID || (access.Manager && access.UserID == entity.ManagerID)
+}
+
+func writeAudit(ctx context.Context, tx pgx.Tx, actorID, entityID, action string, oldValue, newValue any) error {
+	oldJSON, err := marshalNullable(oldValue)
+	if err != nil {
+		return err
+	}
+	newJSON, err := marshalNullable(newValue)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO audit_logs (actor_id, entity_type, entity_id, action, old_value, new_value) VALUES ($1,'comment',$2,$3,$4,$5)`, actorID, entityID, action, oldJSON, newJSON)
+	return err
+}
+
+func marshalNullable(value any) ([]byte, error) {
+	if value == nil {
+		return nil, nil
+	}
+	return json.Marshal(value)
+}
