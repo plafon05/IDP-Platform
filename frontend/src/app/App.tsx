@@ -36,9 +36,10 @@ export function App() {
   const [section, setSection] = useState<Section>('dashboard');
 
   const navItems = useMemo<NavItem[]>(() => {
+    const plansLabel = user?.roles.includes('hr_admin') ? 'Все ИПР' : user?.roles.includes('manager') ? 'ИПР' : 'Мои ИПР';
     const items: NavItem[] = [
       { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Дашборд' },
-      { id: 'plans' as const, icon: BookOpenCheck, label: 'Мои ИПР' },
+      { id: 'plans' as const, icon: BookOpenCheck, label: plansLabel },
       { id: 'analytics' as const, icon: ChartNoAxesCombined, label: 'Аналитика', disabled: true },
       { id: 'settings' as const, icon: Settings, label: 'Настройки', disabled: true },
     ];

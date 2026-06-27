@@ -887,6 +887,36 @@ main {
   gap: 12px;
 }
 
+.segmented-control {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 3px;
+  background: #ffffff;
+}
+
+.segmented-control button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 12px;
+  color: #64748b;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented-control button.active {
+  color: #1e293b;
+  background: #e2e8f0;
+}
+
 .idp-row {
   display: grid;
   gap: 12px;

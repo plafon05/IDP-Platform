@@ -48,8 +48,8 @@ type IDPListResponse = {
   };
 };
 
-export async function listIDPs() {
-  const response = await api.get<IDPListResponse>('/api/v1/idps', { params: { page: 1, limit: 50 } });
+export async function listIDPs(filters: { employeeId?: string; managerId?: string } = {}) {
+  const response = await api.get<IDPListResponse>('/api/v1/idps', { params: { page: 1, limit: 50, ...filters } });
   return response.data.data;
 }
 

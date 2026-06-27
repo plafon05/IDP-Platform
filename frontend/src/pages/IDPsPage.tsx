@@ -36,7 +36,8 @@ export function IDPsPage() {
   const currentUser = useSessionStore((state) => state.user);
   const isHR = currentUser?.roles.includes('hr_admin') ?? false;
   const isManager = currentUser?.roles.includes('manager') ?? false;
-  const canManage = isHR || isManager;
+  type Scope = 'own' | 'team' | 'all';
+  const [scope, setScope] = useState<Scope>(isHR ? 'all' : isManager ? 'team' : 'own');
   const [plans, setPlans] = useState<IDP[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
   const [competencies, setCompetencies] = useState<Competency[]>([]);
@@ -48,15 +49,21 @@ export function IDPsPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const activeCount = useMemo(() => plans.filter((plan) => plan.status === 'active').length, [plans]);
+  const canCreateInScope = isHR ? scope === 'all' : isManager && scope === 'team';
 
   async function load() {
     setStatus('loading');
     setError(null);
     try {
-      const plansResult = await listIDPs();
+      const filters = scope === 'own'
+        ? { employeeId: currentUser?.id }
+        : scope === 'team'
+          ? { managerId: currentUser?.id }
+          : {};
+      const plansResult = await listIDPs(filters);
       setPlans(plansResult);
 
-      if (canManage) {
+      if (canCreateInScope) {
         const [employeesResult, competenciesResult] = await Promise.all([
           isHR ? listUsers().then((result) => result.data.filter((user) => user.is_active && user.manager_id)) : listSubordinates(),
           listCompetencies(false),
@@ -72,8 +79,10 @@ export function IDPsPage() {
   }
 
   useEffect(() => {
+    setExpandedPlan(null);
+    resetForm();
     void load();
-  }, []);
+  }, [scope]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -226,15 +235,23 @@ export function IDPsPage() {
         </div>
       </section>
 
+      {(isManager || isHR) && (
+        <div className="segmented-control" role="tablist" aria-label="Область ИПР">
+          <button className={scope === 'own' ? 'active' : ''} onClick={() => setScope('own')} role="tab" type="button">Мои ИПР</button>
+          {isManager && <button className={scope === 'team' ? 'active' : ''} onClick={() => setScope('team')} role="tab" type="button">ИПР команды</button>}
+          {isHR && <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')} role="tab" type="button">Все ИПР</button>}
+        </div>
+      )}
+
       {error && <div className="form-error">{error}</div>}
       {notice && <div className="form-success">{notice}</div>}
 
-      <section className={`idps-layout ${canManage ? '' : 'single'}`}>
+      <section className={`idps-layout ${canCreateInScope ? '' : 'single'}`}>
         <div className="panel">
           <div className="panel-header">
             <div>
-              <h2>Планы развития</h2>
-              <p>Доступ определяется ролью и подчинённостью</p>
+              <h2>{scope === 'own' ? 'Мои планы развития' : scope === 'team' ? 'Планы команды' : 'Все планы развития'}</h2>
+              <p>{scope === 'own' ? 'ИПР, назначенные вам' : scope === 'team' ? 'ИПР ваших прямых подчинённых' : 'ИПР сотрудников организации'}</p>
             </div>
             <button className="icon-button" onClick={() => void load()} type="button" aria-label="Обновить">
               <RefreshCw size={18} />
@@ -243,8 +260,9 @@ export function IDPsPage() {
 
           <div className="idp-list" aria-busy={status === 'loading'}>
             {plans.length === 0 && status !== 'loading' && <div className="empty-state">ИПР пока нет</div>}
-            {plans.map((plan) => (
-              <article className="idp-row" key={plan.id}>
+            {plans.map((plan) => {
+              const canManagePlan = isHR || (isManager && plan.manager_id === currentUser?.id);
+              return <article className="idp-row" key={plan.id}>
                 <div className="idp-main">
                   <div>
                     <strong>{plan.title}</strong>
@@ -279,7 +297,7 @@ export function IDPsPage() {
                     {expandedPlan?.id === plan.id ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                     Задачи
                   </button>
-                  {canManage && (
+                  {canManagePlan && (
                     <>
                     {(plan.status === 'draft' || plan.status === 'active') && (
                       <button
@@ -343,17 +361,17 @@ export function IDPsPage() {
                 {expandedPlan?.id === plan.id && (
                   <IDPTasksPanel
                     plan={expandedPlan}
-                    canManage={canManage}
+                    canManage={canManagePlan}
                     isEmployee={currentUser?.id === expandedPlan.employee_id}
                     onChanged={load}
                   />
                 )}
               </article>
-            ))}
+            })}
           </div>
         </div>
 
-        {canManage && (
+        {canCreateInScope && (
           <form className="panel idp-form" onSubmit={handleSubmit}>
             <div className="panel-header">
               <div>
