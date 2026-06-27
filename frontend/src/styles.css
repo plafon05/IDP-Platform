@@ -945,6 +945,143 @@ main {
   font-size: 13px;
 }
 
+.task-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
+.task-panel-heading,
+.task-title-row,
+.task-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-list {
+  display: grid;
+}
+
+.task-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.task-item:first-child {
+  border-top: 0;
+}
+
+.task-title-row > div,
+.task-title-row strong,
+.task-title-row span,
+.task-feedback span {
+  display: block;
+}
+
+.task-title-row > div > span,
+.task-item > p,
+.task-feedback {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.task-progress-row .progress-track {
+  flex: 1;
+}
+
+.task-chips,
+.task-resources,
+.task-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-chips span {
+  border-radius: 6px;
+  background: #f1f5f9;
+  padding: 4px 8px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.task-resources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #1d4ed8;
+  font-size: 13px;
+}
+
+.task-form {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #cbd5e1;
+  padding-top: 16px;
+}
+
+.choice-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  border: 0;
+  padding: 0;
+}
+
+.choice-group legend,
+.resource-editor > strong {
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.choice-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.resource-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.resource-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1.3fr) 44px;
+  gap: 8px;
+}
+
+.progress-editor {
+  display: grid;
+  grid-template-columns: 80px repeat(2, minmax(120px, 1fr)) minmax(150px, 1.5fr) 44px 44px;
+  gap: 8px;
+  width: 100%;
+}
+
+.task-empty {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.status-pill.task-not_started { color: #475569; background: #f1f5f9; }
+.status-pill.task-in_progress { color: #1d4ed8; background: #dbeafe; }
+.status-pill.task-completed { color: #166534; background: #dcfce7; }
+.status-pill.task-cancelled { color: #991b1b; background: #fee2e2; }
+
+.secondary-button.compact {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
 .empty-state {
   border: 1px dashed #cbd5e1;
   border-radius: 8px;
@@ -1129,6 +1266,10 @@ main {
   .idps-layout {
     grid-template-columns: 1fr;
   }
+
+  .progress-editor {
+    grid-template-columns: 80px minmax(140px, 1fr) minmax(140px, 1fr);
+  }
 }
 
 .avatar-preview {
@@ -1199,5 +1340,21 @@ main {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .task-title-row,
+  .task-panel-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .resource-row,
+  .progress-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-row .icon-button,
+  .progress-editor .icon-button {
+    width: 100%;
   }
 }

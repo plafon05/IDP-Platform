@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, Edit3, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
+import { Archive, CheckCircle2, ChevronDown, ChevronUp, Edit3, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { listCompetencies, type Competency } from '../shared/api/catalog';
@@ -14,6 +14,7 @@ import {
   type IDPStatus,
 } from '../shared/api/idps';
 import { listSubordinates, listUsers, type User } from '../shared/api/users';
+import { IDPTasksPanel } from './IDPTasksPanel';
 
 const statusLabels: Record<IDPStatus, string> = {
   draft: 'Черновик',
@@ -41,6 +42,7 @@ export function IDPsPage() {
   const [competencies, setCompetencies] = useState<Competency[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingID, setEditingID] = useState<string | null>(null);
+  const [expandedPlan, setExpandedPlan] = useState<IDP | null>(null);
   const [status, setStatus] = useState<'loading' | 'idle' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -119,6 +121,22 @@ export function IDPsPage() {
       });
     } catch {
       setError('Не удалось открыть ИПР для редактирования');
+    } finally {
+      setStatus('idle');
+    }
+  }
+
+  async function toggleTasks(plan: IDP) {
+    if (expandedPlan?.id === plan.id) {
+      setExpandedPlan(null);
+      return;
+    }
+    setStatus('loading');
+    setError(null);
+    try {
+      setExpandedPlan(await getIDP(plan.id));
+    } catch {
+      setError('Не удалось открыть задачи ИПР');
     } finally {
       setStatus('idle');
     }
@@ -252,8 +270,17 @@ export function IDPsPage() {
                   </div>
                 </div>
                 {plan.cancel_reason && <p className="cancel-reason">Причина отмены: {plan.cancel_reason}</p>}
-                {canManage && (
-                  <div className="row-actions">
+                <div className="row-actions">
+                  <button
+                    className="secondary-button compact"
+                    onClick={() => void toggleTasks(plan)}
+                    type="button"
+                  >
+                    {expandedPlan?.id === plan.id ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                    Задачи
+                  </button>
+                  {canManage && (
+                    <>
                     {(plan.status === 'draft' || plan.status === 'active') && (
                       <button
                         className="icon-button"
@@ -310,7 +337,16 @@ export function IDPsPage() {
                         <Archive size={18} />
                       </button>
                     )}
-                  </div>
+                    </>
+                  )}
+                </div>
+                {expandedPlan?.id === plan.id && (
+                  <IDPTasksPanel
+                    plan={expandedPlan}
+                    canManage={canManage}
+                    isEmployee={currentUser?.id === expandedPlan.employee_id}
+                    onChanged={load}
+                  />
                 )}
               </article>
             ))}
