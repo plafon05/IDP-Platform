@@ -41,7 +41,11 @@ func (h tasksHandler) list(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
 		return
 	}
-	result, err := h.service.List(r.Context(), access, idpIDFromTasksPath(r))
+	result, err := h.service.List(r.Context(), access, idpIDFromTasksPath(r), tasks.ListParams{
+		Status: strings.TrimSpace(r.URL.Query().Get("status")), Priority: strings.TrimSpace(r.URL.Query().Get("priority")),
+		CompetencyID: strings.TrimSpace(r.URL.Query().Get("competencyId")), Sort: strings.TrimSpace(r.URL.Query().Get("sort")),
+		Order: strings.TrimSpace(r.URL.Query().Get("order")),
+	})
 	if err != nil {
 		writeTaskError(w, err)
 		return

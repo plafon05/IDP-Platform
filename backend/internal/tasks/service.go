@@ -77,6 +77,14 @@ type ProgressInput struct {
 	SelfComment *string
 }
 
+type ListParams struct {
+	Status       string
+	Priority     string
+	CompetencyID string
+	Sort         string
+	Order        string
+}
+
 type AuditEntry struct {
 	ID        string          `json:"id"`
 	ActorID   *string         `json:"actor_id,omitempty"`
@@ -97,7 +105,7 @@ type planAccess struct {
 
 func NewService(db *pgxpool.Pool) *Service { return &Service{db: db} }
 
-func (s *Service) List(ctx context.Context, access idp.Access, idpID string) ([]Task, error) {
+func (s *Service) List(ctx context.Context, access idp.Access, idpID string, params ListParams) ([]Task, error) {
 	plan, err := s.plan(ctx, idpID)
 	if err != nil {
 		return nil, err
@@ -106,10 +114,22 @@ func (s *Service) List(ctx context.Context, access idp.Access, idpID string) ([]
 		return nil, ErrForbidden
 	}
 
+	orderBy, err := taskOrderBy(params.Sort, params.Order)
+	if err != nil {
+		return nil, err
+	}
+	if (params.Status != "" && !validStatus(params.Status)) ||
+		(params.Priority != "" && !oneOf(params.Priority, "low", "medium", "high")) {
+		return nil, ErrInvalidInput
+	}
+
 	rows, err := s.db.Query(ctx, taskSelect+`
 		WHERE t.idp_id = $1 AND t.deleted_at IS NULL
-		ORDER BY t.due_date NULLS LAST, t.created_at, t.id
-	`, idpID)
+			AND ($2='' OR t.status=$2)
+			AND ($3='' OR t.priority=$3)
+			AND ($4='' OR EXISTS(SELECT 1 FROM task_competencies tc WHERE tc.task_id=t.id AND tc.competency_id=NULLIF($4,'')::uuid))
+		ORDER BY `+orderBy+`, t.created_at, t.id
+	`, idpID, params.Status, params.Priority, params.CompetencyID)
 	if err != nil {
 		return nil, err
 	}
@@ -551,6 +571,28 @@ func validStatus(v string) bool {
 }
 func validRating(v *string) bool {
 	return v == nil || oneOf(strings.TrimSpace(*v), "met", "partially_met", "not_met")
+}
+
+func taskOrderBy(sort, order string) (string, error) {
+	expressions := map[string]string{
+		"due_date": "t.due_date",
+		"priority": "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END",
+		"status":   "CASE t.status WHEN 'in_progress' THEN 1 WHEN 'not_started' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END",
+	}
+	if sort == "" {
+		sort = "due_date"
+	}
+	expression, ok := expressions[sort]
+	if !ok {
+		return "", ErrInvalidInput
+	}
+	if order == "" {
+		order = "asc"
+	}
+	if order != "asc" && order != "desc" {
+		return "", ErrInvalidInput
+	}
+	return expression + " " + strings.ToUpper(order) + " NULLS LAST", nil
 }
 
 func normalizeNewTask(input Input) Input {

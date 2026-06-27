@@ -78,3 +78,16 @@ func TestManagerReviewOnlyForCompletedTask(t *testing.T) {
 		t.Fatal("review before completion must be rejected")
 	}
 }
+
+func TestTaskOrderByWhitelist(t *testing.T) {
+	value, err := taskOrderBy("priority", "desc")
+	if err != nil || value == "" {
+		t.Fatal("valid sorting rejected")
+	}
+	if _, err := taskOrderBy("title; DROP TABLE tasks", "asc"); err != ErrInvalidInput {
+		t.Fatal("unknown sort must be rejected")
+	}
+	if _, err := taskOrderBy("due_date", "sideways"); err != ErrInvalidInput {
+		t.Fatal("unknown order must be rejected")
+	}
+}
