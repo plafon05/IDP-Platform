@@ -148,7 +148,7 @@ func (s *Service) List(ctx context.Context, access Access, params ListParams) (*
 		FROM idps i
 		JOIN users employee ON employee.id = i.employee_id
 		JOIN users manager ON manager.id = i.manager_id
-		LEFT JOIN tasks t ON t.idp_id = i.id
+		LEFT JOIN tasks t ON t.idp_id = i.id AND t.deleted_at IS NULL
 		WHERE i.archived_at IS NULL
 			AND ($1 OR i.employee_id = $2 OR ($3 AND i.manager_id = $2))
 			AND (NULLIF($4, '') IS NULL OR i.employee_id = NULLIF($4, '')::uuid)
@@ -430,7 +430,7 @@ func (s *Service) get(ctx context.Context, id string) (*Plan, error) {
 		FROM idps i
 		JOIN users employee ON employee.id = i.employee_id
 		JOIN users manager ON manager.id = i.manager_id
-		LEFT JOIN tasks t ON t.idp_id = i.id
+		LEFT JOIN tasks t ON t.idp_id = i.id AND t.deleted_at IS NULL
 		WHERE i.id = $1 AND i.archived_at IS NULL
 		GROUP BY i.id, employee.id, manager.id
 	`, id)

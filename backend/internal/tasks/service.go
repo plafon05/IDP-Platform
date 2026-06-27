@@ -1,0 +1,541 @@
+package tasks
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/url"
+	"strings"
+	"time"
+
+	"idp-platform/backend/internal/idp"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	ErrNotFound     = errors.New("task not found")
+	ErrForbidden    = errors.New("task access forbidden")
+	ErrInvalidInput = errors.New("invalid task input")
+	ErrIDPState     = errors.New("idp state does not allow task changes")
+)
+
+type Service struct{ db *pgxpool.Pool }
+
+type Reference struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type Resource struct {
+	ID    string `json:"id,omitempty"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+type Task struct {
+	ID             string      `json:"id"`
+	IDPID          string      `json:"idp_id"`
+	Title          string      `json:"title"`
+	Description    *string     `json:"description,omitempty"`
+	Category       *Reference  `json:"category,omitempty"`
+	Priority       string      `json:"priority"`
+	DueDate        *string     `json:"due_date,omitempty"`
+	Status         string      `json:"status"`
+	Progress       int         `json:"progress"`
+	ManagerRating  *string     `json:"manager_rating,omitempty"`
+	ManagerComment *string     `json:"manager_comment,omitempty"`
+	SelfRating     *string     `json:"self_rating,omitempty"`
+	SelfComment    *string     `json:"self_comment,omitempty"`
+	Competencies   []Reference `json:"competencies"`
+	Tags           []Reference `json:"tags"`
+	Resources      []Resource  `json:"resources"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type Input struct {
+	Title          string
+	Description    *string
+	CategoryID     *string
+	Priority       string
+	DueDate        *time.Time
+	Status         string
+	Progress       int
+	ManagerRating  *string
+	ManagerComment *string
+	CompetencyIDs  []string
+	TagIDs         []string
+	Resources      []Resource
+}
+
+type ProgressInput struct {
+	Status      string
+	Progress    int
+	SelfRating  *string
+	SelfComment *string
+}
+
+type planAccess struct {
+	EmployeeID string
+	ManagerID  string
+	Status     string
+	StartDate  time.Time
+	EndDate    time.Time
+}
+
+func NewService(db *pgxpool.Pool) *Service { return &Service{db: db} }
+
+func (s *Service) List(ctx context.Context, access idp.Access, idpID string) ([]Task, error) {
+	plan, err := s.plan(ctx, idpID)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, plan) {
+		return nil, ErrForbidden
+	}
+
+	rows, err := s.db.Query(ctx, taskSelect+`
+		WHERE t.idp_id = $1 AND t.deleted_at IS NULL
+		ORDER BY t.due_date NULLS LAST, t.created_at, t.id
+	`, idpID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]Task, 0)
+	for rows.Next() {
+		item, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.loadRelations(ctx, &item); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (s *Service) Get(ctx context.Context, access idp.Access, taskID string) (*Task, error) {
+	item, plan, err := s.get(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if !canRead(access, plan) {
+		return nil, ErrForbidden
+	}
+	return item, nil
+}
+
+func (s *Service) Create(ctx context.Context, access idp.Access, idpID string, input Input) (*Task, error) {
+	plan, err := s.plan(ctx, idpID)
+	if err != nil {
+		return nil, err
+	}
+	if !canManage(access, plan) {
+		return nil, ErrForbidden
+	}
+	if !editablePlan(plan.Status) {
+		return nil, ErrIDPState
+	}
+	if input.Status == "" {
+		input.Status = "not_started"
+	}
+	if input.Priority == "" {
+		input.Priority = "medium"
+	}
+	if err := validateInput(input, plan); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if err := validateCategory(ctx, tx, input.CategoryID); err != nil {
+		return nil, err
+	}
+
+	var id string
+	err = tx.QueryRow(ctx, `
+		INSERT INTO tasks (idp_id, title, description, category_id, priority, due_date, status, progress, manager_rating, manager_comment)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id::text
+	`, idpID, strings.TrimSpace(input.Title), trimmed(input.Description), trimmed(input.CategoryID), input.Priority,
+		input.DueDate, input.Status, input.Progress, trimmed(input.ManagerRating), trimmed(input.ManagerComment)).Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+	if err := replaceRelations(ctx, tx, idpID, id, input); err != nil {
+		return nil, err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, id, "task.created", nil, input); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, access, id)
+}
+
+func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, input Input) (*Task, error) {
+	current, plan, err := s.get(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if !canManage(access, plan) {
+		return nil, ErrForbidden
+	}
+	if !editablePlan(plan.Status) {
+		return nil, ErrIDPState
+	}
+	if err := validateInput(input, plan); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if err := validateCategory(ctx, tx, input.CategoryID); err != nil {
+		return nil, err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE tasks SET title=$2, description=$3, category_id=$4, priority=$5, due_date=$6,
+			status=$7, progress=$8, manager_rating=$9, manager_comment=$10, updated_at=NOW()
+		WHERE id=$1 AND deleted_at IS NULL
+	`, taskID, strings.TrimSpace(input.Title), trimmed(input.Description), trimmed(input.CategoryID), input.Priority,
+		input.DueDate, input.Status, input.Progress, trimmed(input.ManagerRating), trimmed(input.ManagerComment))
+	if err != nil {
+		return nil, err
+	}
+	if err := replaceRelations(ctx, tx, current.IDPID, taskID, input); err != nil {
+		return nil, err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, taskID, "task.updated", current, input); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, access, taskID)
+}
+
+func (s *Service) UpdateProgress(ctx context.Context, access idp.Access, taskID string, input ProgressInput) (*Task, error) {
+	current, plan, err := s.get(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if access.UserID != plan.EmployeeID {
+		return nil, ErrForbidden
+	}
+	if plan.Status != "active" {
+		return nil, ErrIDPState
+	}
+	if !validStatus(input.Status) || input.Progress < 0 || input.Progress > 100 ||
+		!validRating(input.SelfRating) || (input.Status == "completed" && input.Progress != 100) {
+		return nil, ErrInvalidInput
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `
+		UPDATE tasks SET status=$2, progress=$3, self_rating=$4, self_comment=$5, updated_at=NOW()
+		WHERE id=$1 AND deleted_at IS NULL
+	`, taskID, input.Status, input.Progress, trimmed(input.SelfRating), trimmed(input.SelfComment))
+	if err != nil {
+		return nil, err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, taskID, "task.progress_changed", current, input); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, access, taskID)
+}
+
+func (s *Service) Delete(ctx context.Context, access idp.Access, taskID string) error {
+	current, plan, err := s.get(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if !canManage(access, plan) {
+		return ErrForbidden
+	}
+	if !editablePlan(plan.Status) {
+		return ErrIDPState
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `UPDATE tasks SET deleted_at=NOW(), updated_at=NOW() WHERE id=$1`, taskID); err != nil {
+		return err
+	}
+	if err := writeAudit(ctx, tx, access.UserID, taskID, "task.deleted", current, nil); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+const taskSelect = `
+	SELECT t.id::text, t.idp_id::text, t.title, t.description,
+		t.category_id::text, c.name, t.priority, t.due_date, t.status, t.progress,
+		t.manager_rating, t.manager_comment, t.self_rating, t.self_comment, t.created_at, t.updated_at
+	FROM tasks t
+	LEFT JOIN task_categories c ON c.id = t.category_id
+`
+
+type rowScanner interface{ Scan(...any) error }
+
+func scanTask(row rowScanner) (Task, error) {
+	var item Task
+	var categoryID, categoryName *string
+	var dueDate *time.Time
+	err := row.Scan(&item.ID, &item.IDPID, &item.Title, &item.Description, &categoryID, &categoryName,
+		&item.Priority, &dueDate, &item.Status, &item.Progress, &item.ManagerRating, &item.ManagerComment,
+		&item.SelfRating, &item.SelfComment, &item.CreatedAt, &item.UpdatedAt)
+	if categoryID != nil {
+		item.Category = &Reference{ID: *categoryID, Name: *categoryName}
+	}
+	if dueDate != nil {
+		formatted := dueDate.Format(time.DateOnly)
+		item.DueDate = &formatted
+	}
+	return item, err
+}
+
+func (s *Service) get(ctx context.Context, taskID string) (*Task, *planAccess, error) {
+	row := s.db.QueryRow(ctx, taskSelect+` WHERE t.id=$1 AND t.deleted_at IS NULL`, taskID)
+	item, err := scanTask(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	plan, err := s.plan(ctx, item.IDPID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.loadRelations(ctx, &item); err != nil {
+		return nil, nil, err
+	}
+	return &item, plan, nil
+}
+
+func (s *Service) plan(ctx context.Context, id string) (*planAccess, error) {
+	var plan planAccess
+	err := s.db.QueryRow(ctx, `
+		SELECT employee_id::text, manager_id::text, status, start_date, end_date
+		FROM idps WHERE id=$1 AND archived_at IS NULL
+	`, id).Scan(&plan.EmployeeID, &plan.ManagerID, &plan.Status, &plan.StartDate, &plan.EndDate)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &plan, err
+}
+
+func (s *Service) loadRelations(ctx context.Context, item *Task) error {
+	var err error
+	item.Competencies, err = queryReferences(ctx, s.db, `
+		SELECT c.id::text, c.name FROM task_competencies tc JOIN competencies c ON c.id=tc.competency_id
+		WHERE tc.task_id=$1 ORDER BY c.name`, item.ID)
+	if err != nil {
+		return err
+	}
+	item.Tags, err = queryReferences(ctx, s.db, `
+		SELECT t.id::text, t.name FROM task_tags tt JOIN tags t ON t.id=tt.tag_id
+		WHERE tt.task_id=$1 ORDER BY t.name`, item.ID)
+	if err != nil {
+		return err
+	}
+	rows, err := s.db.Query(ctx, `SELECT id::text, title, url FROM task_resources WHERE task_id=$1 ORDER BY id`, item.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	item.Resources = make([]Resource, 0)
+	for rows.Next() {
+		var resource Resource
+		if err := rows.Scan(&resource.ID, &resource.Title, &resource.URL); err != nil {
+			return err
+		}
+		item.Resources = append(item.Resources, resource)
+	}
+	return rows.Err()
+}
+
+type queryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func queryReferences(ctx context.Context, q queryer, sql, id string) ([]Reference, error) {
+	rows, err := q.Query(ctx, sql, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]Reference, 0)
+	for rows.Next() {
+		var item Reference
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func replaceRelations(ctx context.Context, tx pgx.Tx, idpID, taskID string, input Input) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM task_competencies WHERE task_id=$1`, taskID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM task_tags WHERE task_id=$1`, taskID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM task_resources WHERE task_id=$1`, taskID); err != nil {
+		return err
+	}
+
+	for _, competencyID := range unique(input.CompetencyIDs) {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO task_competencies (task_id, competency_id)
+			SELECT $1, competency_id FROM idp_competencies WHERE idp_id=$2 AND competency_id=$3
+		`, taskID, idpID, competencyID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return ErrInvalidInput
+		}
+	}
+	for _, tagID := range unique(input.TagIDs) {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO task_tags (task_id, tag_id)
+			SELECT $1, id FROM tags WHERE id=$2 AND is_active=true
+		`, taskID, tagID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return ErrInvalidInput
+		}
+	}
+	for _, resource := range input.Resources {
+		if _, err := tx.Exec(ctx, `INSERT INTO task_resources (task_id, title, url) VALUES ($1,$2,$3)`,
+			taskID, strings.TrimSpace(resource.Title), strings.TrimSpace(resource.URL)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateCategory(ctx context.Context, tx pgx.Tx, categoryID *string) error {
+	if categoryID == nil || strings.TrimSpace(*categoryID) == "" {
+		return nil
+	}
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM task_categories WHERE id=$1 AND is_active=true)`, strings.TrimSpace(*categoryID)).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrInvalidInput
+	}
+	return nil
+}
+
+func validateInput(input Input, plan *planAccess) error {
+	if strings.TrimSpace(input.Title) == "" || len([]rune(strings.TrimSpace(input.Title))) > 200 ||
+		(input.Description != nil && len([]rune(*input.Description)) > 5000) ||
+		!oneOf(input.Priority, "low", "medium", "high") || !validStatus(input.Status) ||
+		input.Progress < 0 || input.Progress > 100 || !validRating(input.ManagerRating) ||
+		(input.Status == "completed" && input.Progress != 100) {
+		return ErrInvalidInput
+	}
+	if input.DueDate != nil && (input.DueDate.Before(plan.StartDate) || input.DueDate.After(plan.EndDate)) {
+		return ErrInvalidInput
+	}
+	for _, resource := range input.Resources {
+		parsed, err := url.ParseRequestURI(strings.TrimSpace(resource.URL))
+		if strings.TrimSpace(resource.Title) == "" || len([]rune(strings.TrimSpace(resource.Title))) > 200 || err != nil ||
+			(parsed.Scheme != "http" && parsed.Scheme != "https") || len(resource.URL) > 1000 {
+			return ErrInvalidInput
+		}
+	}
+	return nil
+}
+
+func writeAudit(ctx context.Context, tx pgx.Tx, actorID, entityID, action string, oldValue, newValue any) error {
+	oldJSON, err := marshalNullable(oldValue)
+	if err != nil {
+		return err
+	}
+	newJSON, err := marshalNullable(newValue)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO audit_logs (actor_id, entity_type, entity_id, action, old_value, new_value)
+		VALUES ($1,'task',$2,$3,$4,$5)`, actorID, entityID, action, oldJSON, newJSON)
+	return err
+}
+
+func marshalNullable(value any) ([]byte, error) {
+	if value == nil {
+		return nil, nil
+	}
+	return json.Marshal(value)
+}
+func canRead(a idp.Access, p *planAccess) bool {
+	return a.IsHR || a.UserID == p.EmployeeID || (a.Manager && a.UserID == p.ManagerID)
+}
+func canManage(a idp.Access, p *planAccess) bool {
+	return a.IsHR || (a.Manager && a.UserID == p.ManagerID)
+}
+func editablePlan(status string) bool { return status == "draft" || status == "active" }
+func validStatus(v string) bool {
+	return oneOf(v, "not_started", "in_progress", "completed", "cancelled")
+}
+func validRating(v *string) bool {
+	return v == nil || oneOf(strings.TrimSpace(*v), "met", "partially_met", "not_met")
+}
+func oneOf(value string, allowed ...string) bool {
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}
+func trimmed(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	result := strings.TrimSpace(*value)
+	if result == "" {
+		return nil
+	}
+	return &result
+}
+func unique(values []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" && !seen[value] {
+			seen[value] = true
+			result = append(result, value)
+		}
+	}
+	return result
+}
