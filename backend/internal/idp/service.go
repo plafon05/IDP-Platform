@@ -34,6 +34,20 @@ type ListParams struct {
 	EmployeeID string
 	ManagerID  string
 	Status     string
+	Page       int
+	Limit      int
+}
+
+type ListResult struct {
+	Data []Plan   `json:"data"`
+	Meta ListMeta `json:"meta"`
+}
+
+type ListMeta struct {
+	Total      int `json:"total"`
+	Page       int `json:"page"`
+	Limit      int `json:"limit"`
+	TotalPages int `json:"total_pages"`
 }
 
 type CompetencyTarget struct {
@@ -91,7 +105,29 @@ func NewService(db *pgxpool.Pool) *Service {
 	return &Service{db: db}
 }
 
-func (s *Service) List(ctx context.Context, access Access, params ListParams) ([]Plan, error) {
+func (s *Service) List(ctx context.Context, access Access, params ListParams) (*ListResult, error) {
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.Limit < 1 || params.Limit > 100 {
+		params.Limit = 50
+	}
+	offset := (params.Page - 1) * params.Limit
+
+	var total int
+	err := s.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM idps i
+		WHERE i.archived_at IS NULL
+			AND ($1 OR i.employee_id = $2 OR ($3 AND i.manager_id = $2))
+			AND (NULLIF($4, '') IS NULL OR i.employee_id = NULLIF($4, '')::uuid)
+			AND (NULLIF($5, '') IS NULL OR i.manager_id = NULLIF($5, '')::uuid)
+			AND ($6 = '' OR i.status = $6)
+	`, access.IsHR, access.UserID, access.Manager, params.EmployeeID, params.ManagerID, params.Status).Scan(&total)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := s.db.Query(ctx, `
 		SELECT i.id::text,
 			i.employee_id::text,
@@ -120,19 +156,28 @@ func (s *Service) List(ctx context.Context, access Access, params ListParams) ([
 			AND ($6 = '' OR i.status = $6)
 		GROUP BY i.id, employee.id, manager.id
 		ORDER BY i.created_at DESC
-	`, access.IsHR, access.UserID, access.Manager, params.EmployeeID, params.ManagerID, params.Status)
+		LIMIT $7 OFFSET $8
+	`, access.IsHR, access.UserID, access.Manager, params.EmployeeID, params.ManagerID, params.Status, params.Limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := make([]Plan, 0)
+	result := &ListResult{
+		Data: make([]Plan, 0, params.Limit),
+		Meta: ListMeta{
+			Total:      total,
+			Page:       params.Page,
+			Limit:      params.Limit,
+			TotalPages: totalPages(total, params.Limit),
+		},
+	}
 	for rows.Next() {
 		item, err := scanPlan(rows)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, item)
+		result.Data = append(result.Data, item)
 	}
 
 	return result, rows.Err()
@@ -569,4 +614,11 @@ func trimmed(value *string) *string {
 	}
 	result := strings.TrimSpace(*value)
 	return &result
+}
+
+func totalPages(total, limit int) int {
+	if total == 0 {
+		return 0
+	}
+	return (total + limit - 1) / limit
 }

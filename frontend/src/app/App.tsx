@@ -13,14 +13,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { CatalogPage } from '../pages/CatalogPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { IDPsPage } from '../pages/IDPsPage';
 import { LoginPage } from '../pages/LoginPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { UsersPage } from '../pages/UsersPage';
 
-type Section = 'dashboard' | 'users' | 'catalog' | 'profile';
+type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'profile';
 type NavItem = {
-  id: Exclude<Section, 'profile'> | 'plans' | 'analytics' | 'settings';
+  id: Exclude<Section, 'profile'> | 'analytics' | 'settings';
   icon: typeof LayoutDashboard;
   label: string;
   disabled?: boolean;
@@ -36,7 +37,7 @@ export function App() {
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
       { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Дашборд' },
-      { id: 'plans' as const, icon: BookOpenCheck, label: 'Мои ИПР', disabled: true },
+      { id: 'plans' as const, icon: BookOpenCheck, label: 'Мои ИПР' },
       { id: 'analytics' as const, icon: ChartNoAxesCombined, label: 'Аналитика', disabled: true },
       { id: 'settings' as const, icon: Settings, label: 'Настройки', disabled: true },
     ];
@@ -74,12 +75,14 @@ export function App() {
     dashboard: 'Индивидуальные планы развития',
     users: 'Управление пользователями',
     catalog: 'Справочники развития',
+    plans: 'Индивидуальные планы развития',
     profile: 'Профиль пользователя',
   }[section];
   const breadcrumb = {
     dashboard: 'Главная / Дашборд',
     users: 'Главная / Пользователи',
     catalog: 'Главная / Справочники',
+    plans: 'Главная / ИПР',
     profile: 'Главная / Профиль',
   }[section];
 
@@ -101,7 +104,12 @@ export function App() {
               disabled={item.disabled}
               key={item.label}
               onClick={() => {
-                if (item.id === 'dashboard' || item.id === 'users' || item.id === 'catalog') {
+                if (
+                  item.id === 'dashboard' ||
+                  item.id === 'users' ||
+                  item.id === 'catalog' ||
+                  item.id === 'plans'
+                ) {
                   setSection(item.id);
                 }
               }}
@@ -148,6 +156,7 @@ export function App() {
           {section === 'profile' && <ProfilePage />}
           {section === 'users' && <UsersPage />}
           {section === 'catalog' && <CatalogPage />}
+          {section === 'plans' && <IDPsPage />}
           {section === 'dashboard' && <DashboardPage />}
         </main>
       </div>

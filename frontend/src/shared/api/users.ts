@@ -63,6 +63,11 @@ export async function listUsers(query = '') {
   return response.data;
 }
 
+export async function listSubordinates() {
+  const response = await api.get<User[]>('/api/v1/users/subordinates');
+  return response.data;
+}
+
 export async function createUser(payload: CreateUserPayload) {
   const response = await api.post<User>('/api/v1/users', payload);
   return response.data;

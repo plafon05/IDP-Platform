@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,12 +41,22 @@ func (h idpHandler) list(w http.ResponseWriter, r *http.Request) {
 		EmployeeID: strings.TrimSpace(r.URL.Query().Get("employeeId")),
 		ManagerID:  strings.TrimSpace(r.URL.Query().Get("managerId")),
 		Status:     strings.TrimSpace(r.URL.Query().Get("status")),
+		Page:       positiveInt(r.URL.Query().Get("page"), 1),
+		Limit:      positiveInt(r.URL.Query().Get("limit"), 50),
 	})
 	if err != nil {
 		writeIDPError(w, err)
 		return
 	}
 	httpjson.WriteJSON(w, http.StatusOK, result)
+}
+
+func positiveInt(value string, fallback int) int {
+	result, err := strconv.Atoi(value)
+	if err != nil || result < 1 {
+		return fallback
+	}
+	return result
 }
 
 func (h idpHandler) create(w http.ResponseWriter, r *http.Request) {
