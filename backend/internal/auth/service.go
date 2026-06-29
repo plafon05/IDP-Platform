@@ -155,7 +155,12 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) (*Pass
 	}
 
 	expiresAt := time.Now().Add(passwordResetTTL)
-	if _, err := s.db.Exec(ctx, `
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
 		VALUES ($1, $2, $3)
 	`, user.ID, tokenHash, expiresAt); err != nil {
@@ -165,13 +170,15 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) (*Pass
 	result := &PasswordResetRequest{ExpiresAt: &expiresAt}
 	resetURL := strings.TrimRight(s.cfg.FrontendURL, "/") + "/reset-password?token=" + token
 	if s.publisher != nil {
-		if err := s.publisher.Enqueue(ctx, notification.Job{
+		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
 			To: []string{user.Email}, Template: notification.PasswordResetTemplate,
 			Data: map[string]string{"reset_url": resetURL, "first_name": user.FirstName},
 		}); err != nil {
-			_, _ = s.db.Exec(ctx, `DELETE FROM password_reset_tokens WHERE token_hash=$1`, tokenHash)
 			return nil, err
 		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
 	}
 	if s.cfg.AppEnv == "development" {
 		result.DevResetToken = &token

@@ -16,10 +16,6 @@ type Job struct {
 	Attempts int               `json:"attempts"`
 }
 
-type Publisher interface {
-	Enqueue(ctx context.Context, job Job) error
-}
-
 type Queue struct {
 	client *redis.Client
 	key    string

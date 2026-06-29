@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/config"
+	"idp-platform/backend/internal/database"
 	"idp-platform/backend/internal/notification"
 )
 
@@ -29,6 +30,13 @@ func main() {
 		slog.Error("email queue unavailable", "error", err)
 		os.Exit(1)
 	}
+	db, err := database.Connect(ctx, cfg)
+	if err != nil {
+		slog.Error("notification database unavailable", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+	go notification.NewRelay(db, queue).Run(ctx)
 	slog.Info("email worker started")
 	if err := notification.NewWorker(queue, notification.NewSMTPSender(cfg)).Run(ctx); err != nil {
 		slog.Error("email worker failed", "error", err)
