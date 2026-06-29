@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"idp-platform/backend/internal/analytics"
 	"idp-platform/backend/internal/auth"
 	"idp-platform/backend/internal/catalog"
 	"idp-platform/backend/internal/comments"
@@ -31,6 +32,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	commentHandlers := commentsHandler{service: comments.NewService(dbPool, publisher, cfg.FrontendURL)}
 	dashboardHandlers := dashboardHandler{service: dashboard.NewService(dbPool)}
 	notificationHandlers := notificationHandler{service: notification.NewPreferencesService(dbPool, cfg.JWTSecret)}
+	analyticsHandlers := analyticsHandler{service: analytics.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -44,6 +46,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.HandleFunc("POST /api/v1/notifications/unsubscribe", notificationHandlers.unsubscribe)
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
 	mux.Handle("GET /api/v1/dashboard", authMiddleware(cfg, http.HandlerFunc(dashboardHandlers.get)))
+	mux.Handle("GET /api/v1/analytics/overview", authMiddleware(cfg, http.HandlerFunc(analyticsHandlers.overview)))
 	mux.Handle("GET /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.getPreferences)))
 	mux.Handle("PUT /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.updatePreferences)))
 	mux.Handle("PUT /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateProfile)))

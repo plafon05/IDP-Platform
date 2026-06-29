@@ -20,10 +20,11 @@ import { UsersPage } from '../pages/UsersPage';
 import { UnsubscribePage } from '../pages/UnsubscribePage';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
 
-type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'profile';
+type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'analytics' | 'profile';
 type NavItem = {
-  id: Exclude<Section, 'profile'> | 'analytics' | 'settings';
+	id: Exclude<Section, 'profile'> | 'settings';
   icon: typeof LayoutDashboard;
   label: string;
   disabled?: boolean;
@@ -31,7 +32,7 @@ type NavItem = {
 
 function sectionFromPath(): Section {
   const value = window.location.pathname.slice(1);
-  return value === 'users' || value === 'catalog' || value === 'plans' || value === 'profile' ? value : 'dashboard';
+  return value === 'users' || value === 'catalog' || value === 'plans' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
 }
 
 export function App() {
@@ -51,9 +52,12 @@ export function App() {
     const items: NavItem[] = [
       { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Дашборд' },
       { id: 'plans' as const, icon: BookOpenCheck, label: plansLabel },
-      { id: 'analytics' as const, icon: ChartNoAxesCombined, label: 'Аналитика', disabled: true },
       { id: 'settings' as const, icon: Settings, label: 'Настройки', disabled: true },
     ];
+
+    if (user?.roles.includes('manager') || user?.roles.includes('hr_admin')) {
+      items.splice(2, 0, { id: 'analytics' as const, icon: ChartNoAxesCombined, label: 'Аналитика' });
+    }
 
     if (user?.roles.includes('hr_admin')) {
       items.splice(1, 0, { id: 'users' as const, icon: Users, label: 'Пользователи' });
@@ -98,6 +102,7 @@ export function App() {
     users: 'Управление пользователями',
     catalog: 'Справочники развития',
     plans: 'Индивидуальные планы развития',
+    analytics: 'Аналитика развития',
     profile: 'Профиль пользователя',
   }[section];
   const breadcrumb = {
@@ -105,6 +110,7 @@ export function App() {
     users: 'Главная / Пользователи',
     catalog: 'Главная / Справочники',
     plans: 'Главная / ИПР',
+    analytics: 'Главная / Аналитика',
     profile: 'Главная / Профиль',
   }[section];
 
@@ -130,7 +136,8 @@ export function App() {
                   item.id === 'dashboard' ||
                   item.id === 'users' ||
                   item.id === 'catalog' ||
-                  item.id === 'plans'
+                  item.id === 'plans' ||
+                  item.id === 'analytics'
                 ) {
                   navigate(item.id);
                 }
@@ -179,6 +186,7 @@ export function App() {
           {section === 'users' && <UsersPage />}
           {section === 'catalog' && <CatalogPage />}
           {section === 'plans' && <IDPsPage />}
+          {section === 'analytics' && <Suspense fallback={<div className="empty-state">Загрузка аналитики...</div>}><AnalyticsPage /></Suspense>}
           {section === 'dashboard' && <Suspense fallback={<div className="empty-state">Загрузка дашборда...</div>}><DashboardPage /></Suspense>}
         </main>
       </div>

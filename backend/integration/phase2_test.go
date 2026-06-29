@@ -106,6 +106,31 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		f.request(t, outsiderToken, http.MethodGet, "/api/v1/idps/"+f.idpID, nil, http.StatusForbidden)
 	})
 
+	t.Run("analytics scope", func(t *testing.T) {
+		path := "/api/v1/analytics/overview?from=2026-01-01&to=2026-12-31"
+		f.request(t, employeeToken, http.MethodGet, path, nil, http.StatusForbidden)
+		managerResponse := f.request(t, managerToken, http.MethodGet, path, nil, http.StatusOK)
+		hrResponse := f.request(t, hrToken, http.MethodGet, path, nil, http.StatusOK)
+		outsiderResponse := f.request(t, outsiderToken, http.MethodGet, path, nil, http.StatusOK)
+		var managerResult, hrResult, outsiderResult struct {
+			Summary struct {
+				Plans int `json:"plans"`
+			} `json:"summary"`
+		}
+		for response, target := range map[*httptest.ResponseRecorder]*struct {
+			Summary struct {
+				Plans int `json:"plans"`
+			} `json:"summary"`
+		}{managerResponse: &managerResult, hrResponse: &hrResult, outsiderResponse: &outsiderResult} {
+			if err := json.Unmarshal(response.Body.Bytes(), target); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if managerResult.Summary.Plans != 1 || hrResult.Summary.Plans != 1 || outsiderResult.Summary.Plans != 0 {
+			t.Fatalf("unexpected analytics scope: manager=%d hr=%d outsider=%d", managerResult.Summary.Plans, hrResult.Summary.Plans, outsiderResult.Summary.Plans)
+		}
+	})
+
 	t.Run("only manager edits plan", func(t *testing.T) {
 		payload := map[string]any{
 			"employee_id": f.employeeID, "title": "Updated plan", "goals": "**Goal**",
