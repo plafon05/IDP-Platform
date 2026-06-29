@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -207,6 +208,11 @@ func (s *Service) Create(ctx context.Context, access idp.Access, idpID string, i
 	if err := writeAudit(ctx, tx, access.UserID, id, "task.created", nil, input); err != nil {
 		return nil, err
 	}
+	if plan.Status == "active" {
+		if err := s.enqueueTaskChange(ctx, tx, plan.EmployeeID, "created", strings.TrimSpace(input.Title), input.DueDate); err != nil {
+			return nil, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -255,6 +261,11 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 	if err := writeAudit(ctx, tx, access.UserID, taskID, "task.updated", current, input); err != nil {
 		return nil, err
 	}
+	if plan.Status == "active" && taskDefinitionChanged(current, input) {
+		if err := s.enqueueTaskChange(ctx, tx, plan.EmployeeID, "updated", strings.TrimSpace(input.Title), input.DueDate); err != nil {
+			return nil, err
+		}
+	}
 	if s.publisher != nil && reviewChanged(current, input) {
 		var email, firstName string
 		if err := tx.QueryRow(ctx, `SELECT email, first_name FROM users WHERE id=$1`, plan.EmployeeID).Scan(&email, &firstName); err != nil {
@@ -281,6 +292,25 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 		return nil, err
 	}
 	return s.Get(ctx, access, taskID)
+}
+
+func (s *Service) enqueueTaskChange(ctx context.Context, tx pgx.Tx, employeeID, event, title string, dueDate *time.Time) error {
+	if s.publisher == nil {
+		return nil
+	}
+	var email string
+	if err := tx.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, employeeID).Scan(&email); err != nil {
+		return err
+	}
+	data := map[string]string{
+		"event": event, "task_title": title, "plans_url": s.frontendURL + "/plans",
+	}
+	if dueDate != nil {
+		data["due_date"] = dueDate.Format(time.DateOnly)
+	}
+	return s.publisher.EnqueueTx(ctx, tx, notification.Job{
+		To: []string{email}, Template: notification.TaskChangedTemplate, Data: data,
+	})
 }
 
 func (s *Service) UpdateProgress(ctx context.Context, access idp.Access, taskID string, input ProgressInput) (*Task, error) {
@@ -641,6 +671,55 @@ func reviewChanged(current *Task, input Input) bool {
 	currentRating, nextRating := pointerValue(trimmed(current.ManagerRating)), pointerValue(trimmed(input.ManagerRating))
 	currentComment, nextComment := pointerValue(trimmed(current.ManagerComment)), pointerValue(trimmed(input.ManagerComment))
 	return (nextRating != "" || nextComment != "") && (currentRating != nextRating || currentComment != nextComment)
+}
+
+func taskDefinitionChanged(current *Task, input Input) bool {
+	if current.Title != strings.TrimSpace(input.Title) || pointerValue(trimmed(current.Description)) != pointerValue(trimmed(input.Description)) ||
+		current.Priority != input.Priority || pointerValue(current.DueDate) != dateValue(input.DueDate) ||
+		categoryID(current.Category) != pointerValue(trimmed(input.CategoryID)) {
+		return true
+	}
+	return !slices.Equal(sortedReferenceIDs(current.Competencies), sortedStrings(input.CompetencyIDs)) ||
+		!slices.Equal(sortedReferenceIDs(current.Tags), sortedStrings(input.TagIDs)) ||
+		!slices.Equal(sortedResources(current.Resources), sortedResources(input.Resources))
+}
+
+func categoryID(value *Reference) string {
+	if value == nil {
+		return ""
+	}
+	return value.ID
+}
+
+func dateValue(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.Format(time.DateOnly)
+}
+
+func sortedReferenceIDs(values []Reference) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, value.ID)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func sortedStrings(values []string) []string {
+	result := unique(values)
+	slices.Sort(result)
+	return result
+}
+
+func sortedResources(values []Resource) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, strings.TrimSpace(value.Title)+"\x00"+strings.TrimSpace(value.URL))
+	}
+	slices.Sort(result)
+	return result
 }
 
 func pointerValue(value *string) string {

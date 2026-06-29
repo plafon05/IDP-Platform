@@ -49,3 +49,16 @@ func TestRenderTaskReview(t *testing.T) {
 		t.Fatal("manager review data is missing")
 	}
 }
+
+func TestRenderTaskChanged(t *testing.T) {
+	message, err := Render(Job{Template: TaskChangedTemplate, Data: map[string]string{
+		"event": "created", "task_title": "Курс Go", "due_date": "2026-06-30",
+		"plans_url": "https://example.test/plans",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message.Text, "назначена") || !strings.Contains(message.Text, "2026-06-30") {
+		t.Fatal("task change data is missing")
+	}
+}

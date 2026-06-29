@@ -11,6 +11,7 @@ const (
 	PasswordResetTemplate = "password_reset"
 	IDPStatusTemplate     = "idp_status_changed"
 	TaskReviewTemplate    = "task_manager_review"
+	TaskChangedTemplate   = "task_changed"
 )
 
 type RenderedMessage struct {
@@ -27,9 +28,44 @@ func Render(job Job) (RenderedMessage, error) {
 		return renderIDPStatus(job.Data)
 	case TaskReviewTemplate:
 		return renderTaskReview(job.Data)
+	case TaskChangedTemplate:
+		return renderTaskChanged(job.Data)
 	default:
 		return RenderedMessage{}, errors.New("unknown notification template")
 	}
+}
+
+func renderTaskChanged(data map[string]string) (RenderedMessage, error) {
+	eventLabels := map[string]struct{ subject, message string }{
+		"created": {"Назначена новая задача", "Вам назначена новая задача"},
+		"updated": {"Задача изменена", "Руководитель изменил задачу"},
+	}
+	labels, ok := eventLabels[data["event"]]
+	if !ok || data["task_title"] == "" || data["plans_url"] == "" {
+		return RenderedMessage{}, errors.New("invalid task change notification data")
+	}
+	view := map[string]string{
+		"heading": labels.subject, "message": labels.message, "task_title": data["task_title"],
+		"due_date": data["due_date"], "plans_url": data["plans_url"],
+	}
+	const body = `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#1e293b"><div style="max-width:600px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border:1px solid #e2e8f0;padding:28px"><h1 style="font-size:22px;margin:0 0 16px">{{.heading}}</h1><p>{{.message}} «{{.task_title}}».</p>{{if .due_date}}<p><strong>Срок:</strong> {{.due_date}}</p>{{end}}<p><a href="{{.plans_url}}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#fff;text-decoration:none">Открыть ИПР</a></p></div></div></body></html>`
+	tmpl, err := template.New("task-changed").Parse(body)
+	if err != nil {
+		return RenderedMessage{}, err
+	}
+	var html bytes.Buffer
+	if err := tmpl.Execute(&html, view); err != nil {
+		return RenderedMessage{}, err
+	}
+	text := labels.message + " «" + data["task_title"] + "»."
+	if data["due_date"] != "" {
+		text += "\nСрок: " + data["due_date"]
+	}
+	return RenderedMessage{
+		Subject: labels.subject + ": " + data["task_title"],
+		Text:    text + "\n" + data["plans_url"],
+		HTML:    html.String(),
+	}, nil
 }
 
 func renderTaskReview(data map[string]string) (RenderedMessage, error) {

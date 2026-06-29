@@ -95,6 +95,28 @@ func TestReviewChanged(t *testing.T) {
 	}
 }
 
+func TestTaskDefinitionChanged(t *testing.T) {
+	dueDate := "2026-06-30"
+	dueTime := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+	current := &Task{
+		Title: "Курс Go", Priority: "medium", DueDate: &dueDate,
+		Competencies: []Reference{{ID: "competency-1"}}, Tags: []Reference{{ID: "tag-1"}},
+		Resources: []Resource{{Title: "Документация", URL: "https://go.dev"}},
+	}
+	input := Input{
+		Title: "Курс Go", Priority: "medium", DueDate: &dueTime,
+		CompetencyIDs: []string{"competency-1"}, TagIDs: []string{"tag-1"},
+		Resources: []Resource{{Title: "Документация", URL: "https://go.dev"}},
+	}
+	if taskDefinitionChanged(current, input) {
+		t.Fatal("unchanged task definition must not create notification")
+	}
+	input.Priority = "high"
+	if !taskDefinitionChanged(current, input) {
+		t.Fatal("changed task definition must create notification")
+	}
+}
+
 func TestTaskOrderByWhitelist(t *testing.T) {
 	value, err := taskOrderBy("priority", "desc")
 	if err != nil || value == "" {
