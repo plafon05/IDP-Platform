@@ -84,6 +84,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://idp:idp@postgres:5432/idp?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       EMAIL_QUEUE_KEY: ${EMAIL_QUEUE_KEY:-idp:email:queue}
+      EMAIL_REMINDER_TIMEZONE: ${EMAIL_REMINDER_TIMEZONE:-Europe/Moscow}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

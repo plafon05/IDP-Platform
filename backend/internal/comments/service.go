@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/idp"
+	"idp-platform/backend/internal/notification"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,7 +23,11 @@ var (
 	ErrEditExpired  = errors.New("comment edit window expired")
 )
 
-type Service struct{ db *pgxpool.Pool }
+type Service struct {
+	db          *pgxpool.Pool
+	publisher   notification.Publisher
+	frontendURL string
+}
 
 type Comment struct {
 	ID           string    `json:"id"`
@@ -44,7 +49,9 @@ type entityAccess struct {
 	ManagerID  string
 }
 
-func NewService(db *pgxpool.Pool) *Service { return &Service{db: db} }
+func NewService(db *pgxpool.Pool, publisher notification.Publisher, frontendURL string) *Service {
+	return &Service{db: db, publisher: publisher, frontendURL: strings.TrimRight(frontendURL, "/")}
+}
 
 func (s *Service) List(ctx context.Context, access idp.Access, entityType, entityID string) ([]Comment, error) {
 	entity, err := s.entity(ctx, entityType, entityID)
@@ -102,10 +109,68 @@ func (s *Service) Create(ctx context.Context, access idp.Access, entityType, ent
 	if err := writeAudit(ctx, tx, access.UserID, id, "comment.created", nil, map[string]any{"entity_type": entityType, "entity_id": entityID, "content": content}); err != nil {
 		return nil, err
 	}
+	if err := s.enqueueCommentNotifications(ctx, tx, access.UserID, entity, entityType, entityID, content); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return s.get(ctx, access, id)
+}
+
+func (s *Service) enqueueCommentNotifications(ctx context.Context, tx pgx.Tx, authorID string, entity *entityAccess, entityType, entityID, content string) error {
+	if s.publisher == nil {
+		return nil
+	}
+	var authorName, entityTitle string
+	if err := tx.QueryRow(ctx, `SELECT concat_ws(' ', last_name, first_name) FROM users WHERE id=$1`, authorID).Scan(&authorName); err != nil {
+		return err
+	}
+	query := `SELECT title FROM idps WHERE id=$1`
+	if entityType == "task" {
+		query = `SELECT title FROM tasks WHERE id=$1`
+	}
+	if err := tx.QueryRow(ctx, query, entityID).Scan(&entityTitle); err != nil {
+		return err
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT email FROM users
+		WHERE id IN ($1,$2) AND id<>$3 AND is_active=true
+	`, entity.EmployeeID, entity.ManagerID, authorID)
+	if err != nil {
+		return err
+	}
+	var emails []string
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			rows.Close()
+			return err
+		}
+		emails = append(emails, email)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	excerpt := []rune(content)
+	if len(excerpt) > 240 {
+		excerpt = append(excerpt[:237], '.', '.', '.')
+	}
+	for _, email := range emails {
+		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
+			To: []string{email}, Template: notification.CommentCreatedTemplate,
+			Data: map[string]string{
+				"author_name": authorName, "entity_type": entityType, "entity_title": entityTitle,
+				"excerpt": string(excerpt), "plans_url": s.frontendURL + "/plans",
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) Update(ctx context.Context, access idp.Access, id, content string) (*Comment, error) {

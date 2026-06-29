@@ -16,6 +16,7 @@ import (
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/handler"
 	"idp-platform/backend/internal/migrations"
+	"idp-platform/backend/internal/notification"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,6 +32,19 @@ type fixture struct {
 	hrID       string
 	idpID      string
 	taskID     string
+	publisher  *recordingPublisher
+}
+
+type recordingPublisher struct{ jobs []notification.Job }
+
+func (p *recordingPublisher) Enqueue(_ context.Context, job notification.Job) error {
+	p.jobs = append(p.jobs, job)
+	return nil
+}
+
+func (p *recordingPublisher) EnqueueTx(_ context.Context, _ pgx.Tx, job notification.Job) error {
+	p.jobs = append(p.jobs, job)
+	return nil
 }
 
 func TestPhase2RoleMatrix(t *testing.T) {
@@ -74,11 +88,11 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	}
 	defer db.Close()
 
-	f := &fixture{db: db, cfg: cfg}
+	f := &fixture{db: db, cfg: cfg, publisher: &recordingPublisher{}}
 	f.reset(t)
 	defer f.reset(t)
 	f.seed(t)
-	f.router = handler.NewRouter(cfg, db, nil, nil)
+	f.router = handler.NewRouter(cfg, db, nil, f.publisher)
 
 	employeeToken := f.token(t, f.employeeID, "employee")
 	managerToken := f.token(t, f.managerID, "employee", "manager")
@@ -124,7 +138,11 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	})
 
 	t.Run("comment ownership", func(t *testing.T) {
+		f.publisher.jobs = nil
 		response := f.request(t, employeeToken, http.MethodPost, "/api/v1/tasks/"+f.taskID+"/comments", map[string]string{"content": "Employee comment"}, http.StatusCreated)
+		if len(f.publisher.jobs) != 1 || f.publisher.jobs[0].Template != notification.CommentCreatedTemplate || f.publisher.jobs[0].To[0] != "manager@test.local" {
+			t.Fatalf("unexpected comment notifications: %#v", f.publisher.jobs)
+		}
 		var comment struct {
 			ID string `json:"id"`
 		}

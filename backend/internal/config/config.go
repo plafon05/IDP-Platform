@@ -38,6 +38,7 @@ type Config struct {
 	SMTPFromEmail      string
 	SMTPFromName       string
 	EmailQueueKey      string
+	ReminderTimezone   string
 }
 
 func Load() Config {
@@ -72,6 +73,7 @@ func Load() Config {
 		SMTPFromEmail:      env("SMTP_FROM_EMAIL", "noreply@idp.local"),
 		SMTPFromName:       env("SMTP_FROM_NAME", "IDP Platform"),
 		EmailQueueKey:      env("EMAIL_QUEUE_KEY", "idp:email:queue"),
+		ReminderTimezone:   env("EMAIL_REMINDER_TIMEZONE", "Europe/Moscow"),
 	}
 }
 

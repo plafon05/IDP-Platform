@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/database"
@@ -36,7 +37,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+	outbox := notification.NewOutbox(db)
 	go notification.NewRelay(db, queue).Run(ctx)
+	reminders, err := notification.NewReminderScheduler(db, outbox, cfg.FrontendURL, cfg.ReminderTimezone)
+	if err != nil {
+		slog.Error("deadline reminder scheduler initialization failed", "error", err)
+		os.Exit(1)
+	}
+	go reminders.Run(ctx)
 	slog.Info("email worker started")
 	if err := notification.NewWorker(queue, notification.NewSMTPSender(cfg)).Run(ctx); err != nil {
 		slog.Error("email worker failed", "error", err)

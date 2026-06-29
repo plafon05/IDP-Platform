@@ -28,7 +28,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	catalogHandlers := catalogHandler{service: catalog.NewService(dbPool)}
 	idpHandlers := idpHandler{service: idp.NewService(dbPool, publisher, cfg.FrontendURL)}
 	taskHandlers := tasksHandler{service: tasks.NewService(dbPool, publisher, cfg.FrontendURL)}
-	commentHandlers := commentsHandler{service: comments.NewService(dbPool)}
+	commentHandlers := commentsHandler{service: comments.NewService(dbPool, publisher, cfg.FrontendURL)}
 	dashboardHandlers := dashboardHandler{service: dashboard.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)

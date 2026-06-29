@@ -8,10 +8,12 @@ import (
 )
 
 const (
-	PasswordResetTemplate = "password_reset"
-	IDPStatusTemplate     = "idp_status_changed"
-	TaskReviewTemplate    = "task_manager_review"
-	TaskChangedTemplate   = "task_changed"
+	PasswordResetTemplate  = "password_reset"
+	IDPStatusTemplate      = "idp_status_changed"
+	TaskReviewTemplate     = "task_manager_review"
+	TaskChangedTemplate    = "task_changed"
+	CommentCreatedTemplate = "comment_created"
+	TaskDeadlineTemplate   = "task_deadline"
 )
 
 type RenderedMessage struct {
@@ -30,9 +32,68 @@ func Render(job Job) (RenderedMessage, error) {
 		return renderTaskReview(job.Data)
 	case TaskChangedTemplate:
 		return renderTaskChanged(job.Data)
+	case CommentCreatedTemplate:
+		return renderCommentCreated(job.Data)
+	case TaskDeadlineTemplate:
+		return renderTaskDeadline(job.Data)
 	default:
 		return RenderedMessage{}, errors.New("unknown notification template")
 	}
+}
+
+func renderTaskDeadline(data map[string]string) (RenderedMessage, error) {
+	labels := map[string]struct{ heading, message string }{
+		"deadline_soon": {"Приближается срок задачи", "До срока выполнения задачи осталось 3 дня"},
+		"overdue":       {"Задача просрочена", "Срок выполнения задачи истёк"},
+	}
+	label, ok := labels[data["kind"]]
+	if !ok || data["task_title"] == "" || data["due_date"] == "" || data["plans_url"] == "" {
+		return RenderedMessage{}, errors.New("invalid deadline notification data")
+	}
+	view := map[string]string{
+		"heading": label.heading, "message": label.message, "task_title": data["task_title"],
+		"due_date": data["due_date"], "plans_url": data["plans_url"],
+	}
+	const body = `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#1e293b"><div style="max-width:600px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border:1px solid #e2e8f0;padding:28px"><h1 style="font-size:22px;margin:0 0 16px">{{.heading}}</h1><p>{{.message}}: «{{.task_title}}».</p><p><strong>Срок:</strong> {{.due_date}}</p><p><a href="{{.plans_url}}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#fff;text-decoration:none">Открыть ИПР</a></p></div></div></body></html>`
+	tmpl, err := template.New("task-deadline").Parse(body)
+	if err != nil {
+		return RenderedMessage{}, err
+	}
+	var html bytes.Buffer
+	if err := tmpl.Execute(&html, view); err != nil {
+		return RenderedMessage{}, err
+	}
+	text := label.message + ": «" + data["task_title"] + "».\nСрок: " + data["due_date"]
+	return RenderedMessage{
+		Subject: label.heading + ": " + data["task_title"],
+		Text:    text + "\n" + data["plans_url"], HTML: html.String(),
+	}, nil
+}
+
+func renderCommentCreated(data map[string]string) (RenderedMessage, error) {
+	entityLabels := map[string]string{"idp": "ИПР", "task": "задаче"}
+	entityLabel, ok := entityLabels[data["entity_type"]]
+	if !ok || data["author_name"] == "" || data["entity_title"] == "" || data["excerpt"] == "" || data["plans_url"] == "" {
+		return RenderedMessage{}, errors.New("invalid comment notification data")
+	}
+	view := map[string]string{
+		"author_name": data["author_name"], "entity_label": entityLabel,
+		"entity_title": data["entity_title"], "excerpt": data["excerpt"], "plans_url": data["plans_url"],
+	}
+	const body = `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#1e293b"><div style="max-width:600px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border:1px solid #e2e8f0;padding:28px"><h1 style="font-size:22px;margin:0 0 16px">Новый комментарий</h1><p>{{.author_name}} оставил комментарий к {{.entity_label}} «{{.entity_title}}».</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #cbd5e1;color:#475569">{{.excerpt}}</blockquote><p><a href="{{.plans_url}}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#fff;text-decoration:none">Открыть ИПР</a></p></div></div></body></html>`
+	tmpl, err := template.New("comment-created").Parse(body)
+	if err != nil {
+		return RenderedMessage{}, err
+	}
+	var html bytes.Buffer
+	if err := tmpl.Execute(&html, view); err != nil {
+		return RenderedMessage{}, err
+	}
+	text := data["author_name"] + " оставил комментарий к " + entityLabel + " «" + data["entity_title"] + "».\n" + data["excerpt"]
+	return RenderedMessage{
+		Subject: "Новый комментарий: " + data["entity_title"],
+		Text:    text + "\n" + data["plans_url"], HTML: html.String(),
+	}, nil
 }
 
 func renderTaskChanged(data map[string]string) (RenderedMessage, error) {

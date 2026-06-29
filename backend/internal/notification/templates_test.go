@@ -62,3 +62,29 @@ func TestRenderTaskChanged(t *testing.T) {
 		t.Fatal("task change data is missing")
 	}
 }
+
+func TestRenderCommentCreatedEscapesContent(t *testing.T) {
+	message, err := Render(Job{Template: CommentCreatedTemplate, Data: map[string]string{
+		"author_name": "Иван Иванов", "entity_type": "task", "entity_title": "Курс Go",
+		"excerpt": "Готово <script>alert(1)</script>", "plans_url": "https://example.test/plans",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(message.HTML, "<script>") || !strings.Contains(message.Text, "Готово") {
+		t.Fatal("comment must be rendered and escaped")
+	}
+}
+
+func TestRenderTaskDeadline(t *testing.T) {
+	message, err := Render(Job{Template: TaskDeadlineTemplate, Data: map[string]string{
+		"kind": "overdue", "task_title": "Курс Go", "due_date": "2026-06-28",
+		"plans_url": "https://example.test/plans",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message.Subject, "просрочена") || !strings.Contains(message.Text, "2026-06-28") {
+		t.Fatal("deadline data is missing")
+	}
+}
