@@ -134,11 +134,11 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
     }
   }
 
-  async function report(task: IDPTask, status: TaskStatus, progress: number, selfRating?: TaskRating, selfComment?: string) {
+  async function report(task: IDPTask, status: TaskStatus, progress: number) {
     setBusy(true);
     setError(null);
     try {
-      await updateTaskProgress(task.id, { status, progress, self_rating: selfRating, self_comment: selfComment });
+      await updateTaskProgress(task.id, { status, progress });
       await Promise.all([loadTasks(), onChanged()]);
     } catch {
       setError('Не удалось обновить прогресс');
@@ -212,10 +212,9 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
                 ))}
               </div>
             )}
-            {(task.manager_comment || task.self_comment) && (
+            {task.manager_comment && (
               <div className="task-feedback">
-                {task.manager_comment && <span><strong>Руководитель:</strong> {task.manager_comment}</span>}
-                {task.self_comment && <span><strong>Сотрудник:</strong> {task.self_comment}</span>}
+                <span><strong>Руководитель:</strong> {task.manager_comment}</span>
               </div>
             )}
             <div className="row-actions">
@@ -259,14 +258,12 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
   );
 }
 
-function ProgressEditor({ task, disabled, onSave }: { task: IDPTask; disabled: boolean; onSave: (task: IDPTask, status: TaskStatus, progress: number, rating?: TaskRating, comment?: string) => Promise<void> }) {
+function ProgressEditor({ task, disabled, onSave }: { task: IDPTask; disabled: boolean; onSave: (task: IDPTask, status: TaskStatus, progress: number) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [progress, setProgress] = useState(task.progress);
   const [status, setStatus] = useState(task.status);
-  const [rating, setRating] = useState<TaskRating | ''>(task.self_rating ?? '');
-  const [comment, setComment] = useState(task.self_comment ?? '');
   if (!open) return <button className="secondary-button compact" type="button" onClick={() => setOpen(true)}>Обновить прогресс</button>;
-  return <div className="progress-editor"><input aria-label="Прогресс" type="number" min={0} max={100} value={progress} onChange={(e) => setProgress(Number(e.target.value))} /><select aria-label="Статус" value={status} onChange={(e) => { const value = e.target.value as TaskStatus; setStatus(value); if (value === 'completed') setProgress(100); }}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="Самооценка" value={rating} onChange={(e) => setRating(e.target.value as TaskRating | '')}><option value="">Без оценки</option>{Object.entries(ratingLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><input aria-label="Комментарий" placeholder="Комментарий" value={comment} onChange={(e) => setComment(e.target.value)} /><button className="icon-button success" disabled={disabled} type="button" aria-label="Сохранить прогресс" onClick={() => void onSave(task, status, progress, rating || undefined, comment.trim() || undefined).then(() => setOpen(false))}><Check size={17} /></button><button className="icon-button" type="button" aria-label="Отмена" onClick={() => setOpen(false)}><X size={17} /></button></div>;
+  return <div className="progress-editor"><input aria-label="Прогресс" type="number" min={0} max={100} value={progress} onChange={(e) => setProgress(Number(e.target.value))} /><select aria-label="Статус" value={status} onChange={(e) => { const value = e.target.value as TaskStatus; setStatus(value); if (value === 'completed') setProgress(100); }}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="icon-button success" disabled={disabled} type="button" aria-label="Сохранить прогресс" onClick={() => void onSave(task, status, progress).then(() => setOpen(false))}><Check size={17} /></button><button className="icon-button" type="button" aria-label="Отмена" onClick={() => setOpen(false)}><X size={17} /></button></div>;
 }
 
 function ChoiceGroup({ title, items, selected, onToggle }: { title: string; items: NamedCatalogItem[]; selected: string[]; onToggle: (id: string, checked: boolean) => void }) {

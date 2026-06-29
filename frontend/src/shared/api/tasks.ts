@@ -19,8 +19,6 @@ export type IDPTask = {
   progress: number;
   manager_rating?: TaskRating;
   manager_comment?: string;
-  self_rating?: TaskRating;
-  self_comment?: string;
   competencies: TaskReference[];
   tags: TaskReference[];
   resources: TaskResource[];
@@ -46,8 +44,6 @@ export type TaskPayload = {
 export type TaskProgressPayload = {
   status: TaskStatus;
   progress: number;
-  self_rating?: TaskRating;
-  self_comment?: string;
 };
 
 export type TaskFilters = {

@@ -46,8 +46,6 @@ type Task struct {
 	Progress       int         `json:"progress"`
 	ManagerRating  *string     `json:"manager_rating,omitempty"`
 	ManagerComment *string     `json:"manager_comment,omitempty"`
-	SelfRating     *string     `json:"self_rating,omitempty"`
-	SelfComment    *string     `json:"self_comment,omitempty"`
 	Competencies   []Reference `json:"competencies"`
 	Tags           []Reference `json:"tags"`
 	Resources      []Resource  `json:"resources"`
@@ -71,10 +69,8 @@ type Input struct {
 }
 
 type ProgressInput struct {
-	Status      string
-	Progress    int
-	SelfRating  *string
-	SelfComment *string
+	Status   string
+	Progress int
 }
 
 type ListParams struct {
@@ -270,7 +266,7 @@ func (s *Service) UpdateProgress(ctx context.Context, access idp.Access, taskID 
 		return nil, ErrIDPState
 	}
 	if !validStatus(input.Status) || input.Progress < 0 || input.Progress > 100 ||
-		!validRating(input.SelfRating) || (input.Status == "completed" && input.Progress != 100) {
+		(input.Status == "completed" && input.Progress != 100) {
 		return nil, ErrInvalidInput
 	}
 
@@ -280,9 +276,9 @@ func (s *Service) UpdateProgress(ctx context.Context, access idp.Access, taskID 
 	}
 	defer tx.Rollback(ctx)
 	_, err = tx.Exec(ctx, `
-		UPDATE tasks SET status=$2, progress=$3, self_rating=$4, self_comment=$5, updated_at=NOW()
+		UPDATE tasks SET status=$2, progress=$3, updated_at=NOW()
 		WHERE id=$1 AND deleted_at IS NULL
-	`, taskID, input.Status, input.Progress, trimmed(input.SelfRating), trimmed(input.SelfComment))
+	`, taskID, input.Status, input.Progress)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +350,7 @@ func (s *Service) Audit(ctx context.Context, access idp.Access, taskID string) (
 const taskSelect = `
 	SELECT t.id::text, t.idp_id::text, t.title, t.description,
 		t.category_id::text, c.name, t.priority, t.due_date, t.status, t.progress,
-		t.manager_rating, t.manager_comment, t.self_rating, t.self_comment, t.created_at, t.updated_at
+		t.manager_rating, t.manager_comment, t.created_at, t.updated_at
 	FROM tasks t
 	LEFT JOIN task_categories c ON c.id = t.category_id
 `
@@ -367,7 +363,7 @@ func scanTask(row rowScanner) (Task, error) {
 	var dueDate *time.Time
 	err := row.Scan(&item.ID, &item.IDPID, &item.Title, &item.Description, &categoryID, &categoryName,
 		&item.Priority, &dueDate, &item.Status, &item.Progress, &item.ManagerRating, &item.ManagerComment,
-		&item.SelfRating, &item.SelfComment, &item.CreatedAt, &item.UpdatedAt)
+		&item.CreatedAt, &item.UpdatedAt)
 	if categoryID != nil {
 		item.Category = &Reference{ID: *categoryID, Name: *categoryName}
 	}

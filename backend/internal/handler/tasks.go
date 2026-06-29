@@ -29,10 +29,8 @@ type taskRequest struct {
 }
 
 type taskProgressRequest struct {
-	Status      string  `json:"status"`
-	Progress    int     `json:"progress"`
-	SelfRating  *string `json:"self_rating"`
-	SelfComment *string `json:"self_comment"`
+	Status   string `json:"status"`
+	Progress int    `json:"progress"`
 }
 
 func (h tasksHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +114,6 @@ func (h tasksHandler) updateProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.service.UpdateProgress(r.Context(), access, taskIDFromProgressPath(r), tasks.ProgressInput{
 		Status: strings.TrimSpace(req.Status), Progress: req.Progress,
-		SelfRating: emptyStringToNil(req.SelfRating), SelfComment: emptyStringToNil(req.SelfComment),
 	})
 	if err != nil {
 		writeTaskError(w, err)

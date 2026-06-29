@@ -102,7 +102,7 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	})
 
 	t.Run("only employee reports progress", func(t *testing.T) {
-		payload := map[string]any{"status": "in_progress", "progress": 50, "self_rating": "partially_met", "self_comment": "In progress"}
+		payload := map[string]any{"status": "in_progress", "progress": 50}
 		f.request(t, managerToken, http.MethodPatch, "/api/v1/tasks/"+f.taskID+"/progress", payload, http.StatusForbidden)
 		f.request(t, employeeToken, http.MethodPatch, "/api/v1/tasks/"+f.taskID+"/progress", payload, http.StatusOK)
 	})
