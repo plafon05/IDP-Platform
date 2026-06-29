@@ -28,12 +28,22 @@ type NavItem = {
   disabled?: boolean;
 };
 
+function sectionFromPath(): Section {
+  const value = window.location.pathname.slice(1);
+  return value === 'users' || value === 'catalog' || value === 'plans' || value === 'profile' ? value : 'dashboard';
+}
+
 export function App() {
   const status = useSessionStore((state) => state.status);
   const user = useSessionStore((state) => state.user);
   const bootstrap = useSessionStore((state) => state.bootstrap);
   const logout = useSessionStore((state) => state.logout);
-  const [section, setSection] = useState<Section>('dashboard');
+  const [section, setSection] = useState<Section>(sectionFromPath);
+
+  function navigate(next: Section) {
+    window.history.pushState({}, '', next === 'dashboard' ? '/' : `/${next}`);
+    setSection(next);
+  }
 
   const navItems = useMemo<NavItem[]>(() => {
     const plansLabel = user?.roles.includes('hr_admin') ? 'Все ИПР' : user?.roles.includes('manager') ? 'ИПР' : 'Мои ИПР';
@@ -55,6 +65,12 @@ export function App() {
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    const handlePopState = () => setSection(sectionFromPath());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   if (window.location.pathname === '/reset-password') {
     return <ResetPasswordPage />;
@@ -112,7 +128,7 @@ export function App() {
                   item.id === 'catalog' ||
                   item.id === 'plans'
                 ) {
-                  setSection(item.id);
+                  navigate(item.id);
                 }
               }}
               type="button"
@@ -145,7 +161,7 @@ export function App() {
             </button>
             <button
               className="avatar-button"
-              onClick={() => setSection('profile')}
+              onClick={() => navigate('profile')}
               type="button"
               aria-label="Профиль пользователя"
             >

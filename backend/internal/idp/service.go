@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"idp-platform/backend/internal/notification"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -21,7 +23,9 @@ var (
 )
 
 type Service struct {
-	db *pgxpool.Pool
+	db          *pgxpool.Pool
+	publisher   notification.Publisher
+	frontendURL string
 }
 
 type Access struct {
@@ -102,8 +106,8 @@ type AuditEntry struct {
 	CreatedAt time.Time       `json:"created_at"`
 }
 
-func NewService(db *pgxpool.Pool) *Service {
-	return &Service{db: db}
+func NewService(db *pgxpool.Pool, publisher notification.Publisher, frontendURL string) *Service {
+	return &Service{db: db, publisher: publisher, frontendURL: strings.TrimRight(frontendURL, "/")}
 }
 
 func (s *Service) List(ctx context.Context, access Access, params ListParams) (*ListResult, error) {
@@ -347,6 +351,26 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 		map[string]any{"status": input.Status, "cancel_reason": cancelReason},
 	); err != nil {
 		return nil, err
+	}
+	if s.publisher != nil {
+		var email, firstName string
+		if err := tx.QueryRow(ctx, `SELECT email, first_name FROM users WHERE id=$1`, current.EmployeeID).Scan(&email, &firstName); err != nil {
+			return nil, err
+		}
+		data := map[string]string{
+			"first_name": firstName,
+			"idp_title":  current.Title,
+			"status":     input.Status,
+			"idp_url":    s.frontendURL + "/plans",
+		}
+		if cancelReason != nil {
+			data["reason"] = *cancelReason
+		}
+		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
+			To: []string{email}, Template: notification.IDPStatusTemplate, Data: data,
+		}); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
