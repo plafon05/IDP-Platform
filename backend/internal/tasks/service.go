@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/idp"
+	"idp-platform/backend/internal/notification"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,7 +22,11 @@ var (
 	ErrIDPState     = errors.New("idp state does not allow task changes")
 )
 
-type Service struct{ db *pgxpool.Pool }
+type Service struct {
+	db          *pgxpool.Pool
+	publisher   notification.Publisher
+	frontendURL string
+}
 
 type Reference struct {
 	ID   string `json:"id"`
@@ -99,7 +104,9 @@ type planAccess struct {
 	EndDate    time.Time
 }
 
-func NewService(db *pgxpool.Pool) *Service { return &Service{db: db} }
+func NewService(db *pgxpool.Pool, publisher notification.Publisher, frontendURL string) *Service {
+	return &Service{db: db, publisher: publisher, frontendURL: strings.TrimRight(frontendURL, "/")}
+}
 
 func (s *Service) List(ctx context.Context, access idp.Access, idpID string, params ListParams) ([]Task, error) {
 	plan, err := s.plan(ctx, idpID)
@@ -247,6 +254,28 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 	}
 	if err := writeAudit(ctx, tx, access.UserID, taskID, "task.updated", current, input); err != nil {
 		return nil, err
+	}
+	if s.publisher != nil && reviewChanged(current, input) {
+		var email, firstName string
+		if err := tx.QueryRow(ctx, `SELECT email, first_name FROM users WHERE id=$1`, plan.EmployeeID).Scan(&email, &firstName); err != nil {
+			return nil, err
+		}
+		data := map[string]string{
+			"first_name": firstName,
+			"task_title": strings.TrimSpace(input.Title),
+			"plans_url":  s.frontendURL + "/plans",
+		}
+		if rating := trimmed(input.ManagerRating); rating != nil {
+			data["rating"] = *rating
+		}
+		if comment := trimmed(input.ManagerComment); comment != nil {
+			data["comment"] = *comment
+		}
+		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
+			To: []string{email}, Template: notification.TaskReviewTemplate, Data: data,
+		}); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
@@ -606,6 +635,19 @@ func normalizeManagerUpdate(current *Task, input Input) (Input, error) {
 		return Input{}, ErrInvalidInput
 	}
 	return input, nil
+}
+
+func reviewChanged(current *Task, input Input) bool {
+	currentRating, nextRating := pointerValue(trimmed(current.ManagerRating)), pointerValue(trimmed(input.ManagerRating))
+	currentComment, nextComment := pointerValue(trimmed(current.ManagerComment)), pointerValue(trimmed(input.ManagerComment))
+	return (nextRating != "" || nextComment != "") && (currentRating != nextRating || currentComment != nextComment)
+}
+
+func pointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 func oneOf(value string, allowed ...string) bool {
 	for _, item := range allowed {

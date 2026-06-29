@@ -79,6 +79,22 @@ func TestManagerReviewOnlyForCompletedTask(t *testing.T) {
 	}
 }
 
+func TestReviewChanged(t *testing.T) {
+	rating := "met"
+	comment := "Хороший результат"
+	current := &Task{ManagerRating: &rating, ManagerComment: &comment}
+	if reviewChanged(current, Input{ManagerRating: &rating, ManagerComment: &comment}) {
+		t.Fatal("unchanged review must not create notification")
+	}
+	updatedComment := "Отличный результат"
+	if !reviewChanged(current, Input{ManagerRating: &rating, ManagerComment: &updatedComment}) {
+		t.Fatal("changed review must create notification")
+	}
+	if reviewChanged(current, Input{}) {
+		t.Fatal("review removal must not create notification")
+	}
+}
+
 func TestTaskOrderByWhitelist(t *testing.T) {
 	value, err := taskOrderBy("priority", "desc")
 	if err != nil || value == "" {

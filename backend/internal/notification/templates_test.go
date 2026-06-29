@@ -36,3 +36,16 @@ func TestRenderIDPStatusRejectsUnknownStatus(t *testing.T) {
 		t.Fatal("unknown status must be rejected")
 	}
 }
+
+func TestRenderTaskReview(t *testing.T) {
+	message, err := Render(Job{Template: TaskReviewTemplate, Data: map[string]string{
+		"task_title": "Курс Go", "rating": "met", "comment": "Отлично",
+		"plans_url": "https://example.test/plans",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message.Text, "Выполнено") || !strings.Contains(message.Text, "Отлично") {
+		t.Fatal("manager review data is missing")
+	}
+}
