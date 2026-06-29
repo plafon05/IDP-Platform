@@ -17,6 +17,7 @@ import { LoginPage } from '../pages/LoginPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { UsersPage } from '../pages/UsersPage';
+import { UnsubscribePage } from '../pages/UnsubscribePage';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 
@@ -74,6 +75,9 @@ export function App() {
 
   if (window.location.pathname === '/reset-password') {
     return <ResetPasswordPage />;
+  }
+  if (window.location.pathname === '/unsubscribe') {
+    return <UnsubscribePage />;
   }
 
   if (status === 'checking') {

@@ -171,7 +171,8 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) (*Pass
 	resetURL := strings.TrimRight(s.cfg.FrontendURL, "/") + "/reset-password?token=" + token
 	if s.publisher != nil {
 		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
-			To: []string{user.Email}, Template: notification.PasswordResetTemplate,
+			UserID: user.ID,
+			To:     []string{user.Email}, Template: notification.PasswordResetTemplate,
 			Data: map[string]string{"reset_url": resetURL, "first_name": user.FirstName},
 		}); err != nil {
 			return nil, err

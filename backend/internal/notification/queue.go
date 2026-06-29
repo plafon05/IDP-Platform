@@ -10,6 +10,7 @@ import (
 )
 
 type Job struct {
+	UserID   string            `json:"user_id,omitempty"`
 	To       []string          `json:"to"`
 	Template string            `json:"template"`
 	Data     map[string]string `json:"data"`

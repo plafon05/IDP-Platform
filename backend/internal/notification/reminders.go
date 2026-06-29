@@ -53,7 +53,8 @@ func (s *ReminderScheduler) process(ctx context.Context, now time.Time) error {
 	defer tx.Rollback(ctx)
 
 	rows, err := tx.Query(ctx, `
-		SELECT t.id::text, t.title, t.due_date, employee.email, manager.email
+		SELECT t.id::text, t.title, t.due_date,
+			employee.id::text, employee.email, manager.id::text, manager.email
 		FROM tasks t
 		JOIN idps i ON i.id=t.idp_id
 		JOIN users employee ON employee.id=i.employee_id AND employee.is_active=true
@@ -67,13 +68,13 @@ func (s *ReminderScheduler) process(ctx context.Context, now time.Time) error {
 		return err
 	}
 	type reminder struct {
-		id, title, employeeEmail, managerEmail string
-		dueDate                                time.Time
+		id, title, employeeID, employeeEmail, managerID, managerEmail string
+		dueDate                                                       time.Time
 	}
 	var items []reminder
 	for rows.Next() {
 		var item reminder
-		if err := rows.Scan(&item.id, &item.title, &item.dueDate, &item.employeeEmail, &item.managerEmail); err != nil {
+		if err := rows.Scan(&item.id, &item.title, &item.dueDate, &item.employeeID, &item.employeeEmail, &item.managerID, &item.managerEmail); err != nil {
 			rows.Close()
 			return err
 		}
@@ -98,13 +99,14 @@ func (s *ReminderScheduler) process(ctx context.Context, now time.Time) error {
 		if tag.RowsAffected() == 0 {
 			continue
 		}
-		recipients := []string{item.employeeEmail}
+		type recipient struct{ id, email string }
+		recipients := []recipient{{item.employeeID, item.employeeEmail}}
 		if kind == "overdue" && item.managerEmail != item.employeeEmail {
-			recipients = append(recipients, item.managerEmail)
+			recipients = append(recipients, recipient{item.managerID, item.managerEmail})
 		}
-		for _, email := range recipients {
+		for _, recipient := range recipients {
 			if err := s.publisher.EnqueueTx(ctx, tx, Job{
-				To: []string{email}, Template: TaskDeadlineTemplate,
+				UserID: recipient.id, To: []string{recipient.email}, Template: TaskDeadlineTemplate,
 				Data: map[string]string{
 					"kind": kind, "task_title": item.title,
 					"due_date": item.dueDate.Format(time.DateOnly), "plans_url": s.frontendURL + "/plans",

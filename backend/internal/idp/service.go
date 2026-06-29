@@ -367,7 +367,8 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 			data["reason"] = *cancelReason
 		}
 		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
-			To: []string{email}, Template: notification.IDPStatusTemplate, Data: data,
+			UserID: current.EmployeeID,
+			To:     []string{email}, Template: notification.IDPStatusTemplate, Data: data,
 		}); err != nil {
 			return nil, err
 		}

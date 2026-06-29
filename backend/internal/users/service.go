@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"idp-platform/backend/internal/auth"
+	"idp-platform/backend/internal/notification"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,7 +20,9 @@ var (
 )
 
 type Service struct {
-	db *pgxpool.Pool
+	db          *pgxpool.Pool
+	publisher   notification.Publisher
+	frontendURL string
 }
 
 type User struct {
@@ -110,8 +113,8 @@ type ImportRowError struct {
 	Message string `json:"message"`
 }
 
-func NewService(db *pgxpool.Pool) *Service {
-	return &Service{db: db}
+func NewService(db *pgxpool.Pool, publisher notification.Publisher, frontendURL string) *Service {
+	return &Service{db: db, publisher: publisher, frontendURL: strings.TrimRight(frontendURL, "/")}
 }
 
 func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, error) {
@@ -318,6 +321,14 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*User, error) 
 
 	if err := replaceRoles(ctx, tx, userID, normalizeRoles(input.Roles)); err != nil {
 		return nil, err
+	}
+	if s.publisher != nil {
+		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
+			UserID: userID, To: []string{strings.TrimSpace(input.Email)}, Template: notification.WelcomeTemplate,
+			Data: map[string]string{"first_name": input.FirstName, "login_url": s.frontendURL},
+		}); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err

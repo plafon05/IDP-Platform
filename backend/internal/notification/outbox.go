@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,11 +49,15 @@ func insertJob(ctx context.Context, db queryExecer, job Job) error {
 }
 
 type Relay struct {
-	db    *pgxpool.Pool
-	queue *Queue
+	db          *pgxpool.Pool
+	queue       *Queue
+	secret      []byte
+	frontendURL string
 }
 
-func NewRelay(db *pgxpool.Pool, queue *Queue) *Relay { return &Relay{db: db, queue: queue} }
+func NewRelay(db *pgxpool.Pool, queue *Queue, secret, frontendURL string) *Relay {
+	return &Relay{db: db, queue: queue, secret: []byte(secret), frontendURL: strings.TrimRight(frontendURL, "/")}
+}
 
 func (r *Relay) Run(ctx context.Context) {
 	ticker := time.NewTicker(relayInterval)
@@ -109,6 +114,22 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 	rows.Close()
 
 	for _, current := range items {
+		deliver, err := r.shouldDeliver(ctx, tx, current.job)
+		if err != nil {
+			return err
+		}
+		if !deliver {
+			if _, err := tx.Exec(ctx, `UPDATE notification_outbox SET published_at=NOW() WHERE id=$1`, current.id); err != nil {
+				return err
+			}
+			continue
+		}
+		if current.job.UserID != "" && preferenceColumn(current.job.Template) != "" {
+			if current.job.Data == nil {
+				current.job.Data = map[string]string{}
+			}
+			current.job.Data["unsubscribe_url"] = r.frontendURL + "/unsubscribe?token=" + signUnsubscribeToken(current.job.UserID, r.secret)
+		}
 		if err := r.queue.Enqueue(ctx, current.job); err != nil {
 			return err
 		}
@@ -117,4 +138,14 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+func (r *Relay) shouldDeliver(ctx context.Context, tx pgx.Tx, job Job) (bool, error) {
+	column := preferenceColumn(job.Template)
+	if column == "" || job.UserID == "" {
+		return true, nil
+	}
+	var enabled bool
+	err := tx.QueryRow(ctx, `SELECT COALESCE((SELECT email_enabled AND `+column+` FROM notification_preferences WHERE user_id=$1),true)`, job.UserID).Scan(&enabled)
+	return enabled, err
 }

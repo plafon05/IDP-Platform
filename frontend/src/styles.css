@@ -730,6 +730,43 @@ main {
   gap: 14px;
 }
 
+.notification-settings {
+  align-content: start;
+}
+
+.notification-options {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.notification-toggle {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.notification-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+.unsubscribe-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.unsubscribe-panel h1,
+.unsubscribe-panel p {
+  margin: 0;
+}
+
 .avatar-card {
   justify-items: center;
   text-align: center;

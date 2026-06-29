@@ -1,11 +1,16 @@
-import { KeyRound, Save, UserRound } from 'lucide-react';
+import { Bell, KeyRound, Save, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { changePassword, updateAvatar, updateProfile } from '../shared/api/auth';
+import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '../shared/api/notifications';
 
 const emptyPasswordForm = {
   current_password: '',
   new_password: '',
+};
+
+const defaultNotifications: NotificationPreferences = {
+  email_enabled: true, idp_updates: true, task_updates: true, comments: true, reminders: true,
 };
 
 export function ProfilePage() {
@@ -20,6 +25,8 @@ export function ProfilePage() {
   const [profileStatus, setProfileStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [passwordStatus, setPasswordStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [avatarStatus, setAvatarStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [notifications, setNotifications] = useState(defaultNotifications);
+  const [notificationStatus, setNotificationStatus] = useState<'loading' | 'idle' | 'saving' | 'saved'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -34,6 +41,26 @@ export function ProfilePage() {
       middle_name: user.middle_name ?? '',
     });
   }, [user]);
+
+  useEffect(() => {
+    void getNotificationPreferences()
+      .then((value) => { setNotifications(value); setNotificationStatus('idle'); })
+      .catch(() => { setError('Не удалось загрузить настройки уведомлений'); setNotificationStatus('idle'); });
+  }, []);
+
+  async function saveNotifications() {
+    setNotificationStatus('saving');
+    setError(null);
+    setNotice(null);
+    try {
+      setNotifications(await updateNotificationPreferences(notifications));
+      setNotificationStatus('saved');
+      setNotice('Настройки уведомлений сохранены');
+    } catch {
+      setError('Не удалось сохранить настройки уведомлений');
+      setNotificationStatus('idle');
+    }
+  }
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -224,9 +251,25 @@ export function ProfilePage() {
             {passwordStatus === 'saved' ? 'Пароль изменён' : 'Сменить пароль'}
           </button>
         </form>
+
+        <section className="panel profile-form notification-settings">
+          <div className="panel-header"><div><h2>Уведомления</h2><p>Управление письмами на {user?.email}</p></div><Bell size={20} aria-hidden="true" /></div>
+          <NotificationToggle label="Email-уведомления" checked={notifications.email_enabled} onChange={(checked) => setNotifications((current) => ({ ...current, email_enabled: checked }))} />
+          <div className="notification-options" aria-disabled={!notifications.email_enabled}>
+            <NotificationToggle label="Изменения ИПР" checked={notifications.idp_updates} disabled={!notifications.email_enabled} onChange={(checked) => setNotifications((current) => ({ ...current, idp_updates: checked }))} />
+            <NotificationToggle label="Назначение и оценка задач" checked={notifications.task_updates} disabled={!notifications.email_enabled} onChange={(checked) => setNotifications((current) => ({ ...current, task_updates: checked }))} />
+            <NotificationToggle label="Новые комментарии" checked={notifications.comments} disabled={!notifications.email_enabled} onChange={(checked) => setNotifications((current) => ({ ...current, comments: checked }))} />
+            <NotificationToggle label="Сроки и просрочки" checked={notifications.reminders} disabled={!notifications.email_enabled} onChange={(checked) => setNotifications((current) => ({ ...current, reminders: checked }))} />
+          </div>
+          <button className="primary-button" disabled={notificationStatus === 'loading' || notificationStatus === 'saving'} onClick={() => void saveNotifications()} type="button"><Save size={18} />{notificationStatus === 'saved' ? 'Сохранено' : 'Сохранить'}</button>
+        </section>
       </section>
     </div>
   );
+}
+
+function NotificationToggle({ label, checked, disabled = false, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
+  return <label className="notification-toggle"><span>{label}</span><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} /></label>;
 }
 
 function AvatarImage({ user }: { user: { avatar_url?: string; first_name: string; last_name: string } | null }) {

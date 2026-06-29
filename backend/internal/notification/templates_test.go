@@ -88,3 +88,26 @@ func TestRenderTaskDeadline(t *testing.T) {
 		t.Fatal("deadline data is missing")
 	}
 }
+
+func TestRenderWelcomeWithoutPassword(t *testing.T) {
+	message, err := Render(Job{Template: WelcomeTemplate, Data: map[string]string{"login_url": "https://example.test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.ToLower(message.Text), "password") || !strings.Contains(message.Text, "https://example.test") {
+		t.Fatal("welcome message must contain login URL and no password")
+	}
+}
+
+func TestRenderAddsUnsubscribeFooter(t *testing.T) {
+	message, err := Render(Job{Template: TaskDeadlineTemplate, Data: map[string]string{
+		"kind": "overdue", "task_title": "Task", "due_date": "2026-06-28",
+		"plans_url": "https://example.test/plans", "unsubscribe_url": "https://example.test/unsubscribe?token=a&b=c",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message.Text, "Отписаться") || strings.Contains(message.HTML, "token=a&b=c") {
+		t.Fatal("unsubscribe footer is missing or not escaped")
+	}
+}

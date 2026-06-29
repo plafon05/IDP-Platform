@@ -283,7 +283,8 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 			data["comment"] = *comment
 		}
 		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
-			To: []string{email}, Template: notification.TaskReviewTemplate, Data: data,
+			UserID: plan.EmployeeID,
+			To:     []string{email}, Template: notification.TaskReviewTemplate, Data: data,
 		}); err != nil {
 			return nil, err
 		}
@@ -309,7 +310,8 @@ func (s *Service) enqueueTaskChange(ctx context.Context, tx pgx.Tx, employeeID, 
 		data["due_date"] = dueDate.Format(time.DateOnly)
 	}
 	return s.publisher.EnqueueTx(ctx, tx, notification.Job{
-		To: []string{email}, Template: notification.TaskChangedTemplate, Data: data,
+		UserID: employeeID,
+		To:     []string{email}, Template: notification.TaskChangedTemplate, Data: data,
 	})
 }
 

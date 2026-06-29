@@ -24,12 +24,13 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux := http.NewServeMux()
 	authService := auth.NewService(cfg, dbPool, publisher)
 	authHandlers := authHandler{cfg: cfg, service: authService}
-	usersHandlers := usersHandler{service: users.NewService(dbPool), avatarStore: avatarStore}
+	usersHandlers := usersHandler{service: users.NewService(dbPool, publisher, cfg.FrontendURL), avatarStore: avatarStore}
 	catalogHandlers := catalogHandler{service: catalog.NewService(dbPool)}
 	idpHandlers := idpHandler{service: idp.NewService(dbPool, publisher, cfg.FrontendURL)}
 	taskHandlers := tasksHandler{service: tasks.NewService(dbPool, publisher, cfg.FrontendURL)}
 	commentHandlers := commentsHandler{service: comments.NewService(dbPool, publisher, cfg.FrontendURL)}
 	dashboardHandlers := dashboardHandler{service: dashboard.NewService(dbPool)}
+	notificationHandlers := notificationHandler{service: notification.NewPreferencesService(dbPool, cfg.JWTSecret)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -40,8 +41,11 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandlers.logout)
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", authHandlers.forgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", authHandlers.resetPassword)
+	mux.HandleFunc("POST /api/v1/notifications/unsubscribe", notificationHandlers.unsubscribe)
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
 	mux.Handle("GET /api/v1/dashboard", authMiddleware(cfg, http.HandlerFunc(dashboardHandlers.get)))
+	mux.Handle("GET /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.getPreferences)))
+	mux.Handle("PUT /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.updatePreferences)))
 	mux.Handle("PUT /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateProfile)))
 	mux.Handle("PUT /api/v1/users/me/password", authMiddleware(cfg, http.HandlerFunc(usersHandlers.changePassword)))
 	mux.Handle("PUT /api/v1/users/me/avatar", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateAvatar)))

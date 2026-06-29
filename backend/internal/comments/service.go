@@ -134,20 +134,21 @@ func (s *Service) enqueueCommentNotifications(ctx context.Context, tx pgx.Tx, au
 		return err
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT email FROM users
+		SELECT id::text, email FROM users
 		WHERE id IN ($1,$2) AND id<>$3 AND is_active=true
 	`, entity.EmployeeID, entity.ManagerID, authorID)
 	if err != nil {
 		return err
 	}
-	var emails []string
+	type recipient struct{ id, email string }
+	var recipients []recipient
 	for rows.Next() {
-		var email string
-		if err := rows.Scan(&email); err != nil {
+		var item recipient
+		if err := rows.Scan(&item.id, &item.email); err != nil {
 			rows.Close()
 			return err
 		}
-		emails = append(emails, email)
+		recipients = append(recipients, item)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -159,9 +160,9 @@ func (s *Service) enqueueCommentNotifications(ctx context.Context, tx pgx.Tx, au
 	if len(excerpt) > 240 {
 		excerpt = append(excerpt[:237], '.', '.', '.')
 	}
-	for _, email := range emails {
+	for _, recipient := range recipients {
 		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
-			To: []string{email}, Template: notification.CommentCreatedTemplate,
+			UserID: recipient.id, To: []string{recipient.email}, Template: notification.CommentCreatedTemplate,
 			Data: map[string]string{
 				"author_name": authorName, "entity_type": entityType, "entity_title": entityTitle,
 				"excerpt": string(excerpt), "plans_url": s.frontendURL + "/plans",

@@ -38,7 +38,7 @@ func main() {
 	}
 	defer db.Close()
 	outbox := notification.NewOutbox(db)
-	go notification.NewRelay(db, queue).Run(ctx)
+	go notification.NewRelay(db, queue, cfg.JWTSecret, cfg.FrontendURL).Run(ctx)
 	reminders, err := notification.NewReminderScheduler(db, outbox, cfg.FrontendURL, cfg.ReminderTimezone)
 	if err != nil {
 		slog.Error("deadline reminder scheduler initialization failed", "error", err)

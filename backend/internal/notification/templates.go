@@ -3,6 +3,7 @@ package notification
 import (
 	"bytes"
 	"errors"
+	"html"
 	"html/template"
 	"strings"
 )
@@ -14,6 +15,7 @@ const (
 	TaskChangedTemplate    = "task_changed"
 	CommentCreatedTemplate = "comment_created"
 	TaskDeadlineTemplate   = "task_deadline"
+	WelcomeTemplate        = "welcome"
 )
 
 type RenderedMessage struct {
@@ -23,22 +25,55 @@ type RenderedMessage struct {
 }
 
 func Render(job Job) (RenderedMessage, error) {
+	var message RenderedMessage
+	var err error
 	switch job.Template {
 	case PasswordResetTemplate:
-		return renderPasswordReset(job.Data)
+		message, err = renderPasswordReset(job.Data)
 	case IDPStatusTemplate:
-		return renderIDPStatus(job.Data)
+		message, err = renderIDPStatus(job.Data)
 	case TaskReviewTemplate:
-		return renderTaskReview(job.Data)
+		message, err = renderTaskReview(job.Data)
 	case TaskChangedTemplate:
-		return renderTaskChanged(job.Data)
+		message, err = renderTaskChanged(job.Data)
 	case CommentCreatedTemplate:
-		return renderCommentCreated(job.Data)
+		message, err = renderCommentCreated(job.Data)
 	case TaskDeadlineTemplate:
-		return renderTaskDeadline(job.Data)
+		message, err = renderTaskDeadline(job.Data)
+	case WelcomeTemplate:
+		message, err = renderWelcome(job.Data)
 	default:
 		return RenderedMessage{}, errors.New("unknown notification template")
 	}
+	if err != nil {
+		return RenderedMessage{}, err
+	}
+	if unsubscribeURL := job.Data["unsubscribe_url"]; unsubscribeURL != "" {
+		message.Text += "\n\nОтписаться от уведомлений: " + unsubscribeURL
+		footer := `<p style="margin:20px;color:#64748b;font-size:12px"><a href="` + html.EscapeString(unsubscribeURL) + `" style="color:#64748b">Отписаться от уведомлений</a></p>`
+		message.HTML = strings.Replace(message.HTML, "</body>", footer+"</body>", 1)
+	}
+	return message, nil
+}
+
+func renderWelcome(data map[string]string) (RenderedMessage, error) {
+	if data["login_url"] == "" {
+		return RenderedMessage{}, errors.New("login_url is required")
+	}
+	const body = `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#1e293b"><div style="max-width:600px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border:1px solid #e2e8f0;padding:28px"><h1 style="font-size:22px;margin:0 0 16px">Добро пожаловать в IDP Platform</h1><p>Для вас создана учётная запись.</p><p><a href="{{.login_url}}" style="display:inline-block;padding:11px 16px;background:#2563eb;color:#fff;text-decoration:none">Войти в систему</a></p><p style="color:#64748b;font-size:13px">Используйте email и пароль, переданные администратором по защищённому каналу.</p></div></div></body></html>`
+	tmpl, err := template.New("welcome").Parse(body)
+	if err != nil {
+		return RenderedMessage{}, err
+	}
+	var html bytes.Buffer
+	if err := tmpl.Execute(&html, data); err != nil {
+		return RenderedMessage{}, err
+	}
+	return RenderedMessage{
+		Subject: "Добро пожаловать в IDP Platform",
+		Text:    "Для вас создана учётная запись IDP Platform.\nВойти: " + data["login_url"],
+		HTML:    html.String(),
+	}, nil
 }
 
 func renderTaskDeadline(data map[string]string) (RenderedMessage, error) {
