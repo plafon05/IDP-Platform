@@ -63,6 +63,10 @@ export function IDPsPage() {
           : {};
       const plansResult = await listIDPs(filters);
       setPlans(plansResult);
+	  const requestedPlanID = new URLSearchParams(window.location.search).get('id');
+	  if (requestedPlanID && plansResult.some((plan) => plan.id === requestedPlanID)) {
+	    setExpandedPlan(await getIDP(requestedPlanID));
+	  }
 
       if (canCreateInScope) {
         const [employeesResult, competenciesResult] = await Promise.all([

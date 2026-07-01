@@ -1,4 +1,4 @@
-import { Edit3, RefreshCw, Search, Upload, UserCheck, UserMinus, UserPlus } from 'lucide-react';
+import { Edit3, Eye, RefreshCw, Search, Upload, UserCheck, UserMinus, UserPlus } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
@@ -277,6 +277,7 @@ export function UsersPage() {
                   {user.is_active ? 'Активен' : 'Отключен'}
                 </span>
                 <div className="row-actions">
+                  <a className="icon-button" href={`/employees/${user.id}`} title="Профиль сотрудника" aria-label="Профиль сотрудника"><Eye size={18} /></a>
                   <button
                     className="icon-button"
                     disabled={status === 'saving'}

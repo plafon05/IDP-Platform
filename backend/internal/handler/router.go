@@ -64,6 +64,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.Handle("POST /api/v1/users/import", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.importCSV))))
 	mux.Handle("GET /api/v1/users/subordinates", authMiddleware(cfg, http.HandlerFunc(usersHandlers.subordinates)))
 	mux.Handle("GET /api/v1/users/{id}/idps", authMiddleware(cfg, http.HandlerFunc(usersHandlers.idps)))
+	mux.Handle("GET /api/v1/employees/{id}/profile", authMiddleware(cfg, http.HandlerFunc(usersHandlers.employeeProfile)))
 	mux.Handle("PATCH /api/v1/users/{id}/activate", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.activate))))
 	mux.Handle("GET /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.get))))
 	mux.Handle("PUT /api/v1/users/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(usersHandlers.update))))

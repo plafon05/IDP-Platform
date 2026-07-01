@@ -104,6 +104,11 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		f.request(t, managerToken, http.MethodGet, "/api/v1/idps/"+f.idpID, nil, http.StatusOK)
 		f.request(t, hrToken, http.MethodGet, "/api/v1/idps/"+f.idpID, nil, http.StatusOK)
 		f.request(t, outsiderToken, http.MethodGet, "/api/v1/idps/"+f.idpID, nil, http.StatusForbidden)
+		profilePath := "/api/v1/employees/" + f.employeeID + "/profile"
+		f.request(t, employeeToken, http.MethodGet, profilePath, nil, http.StatusOK)
+		f.request(t, managerToken, http.MethodGet, profilePath, nil, http.StatusOK)
+		f.request(t, hrToken, http.MethodGet, profilePath, nil, http.StatusOK)
+		f.request(t, outsiderToken, http.MethodGet, profilePath, nil, http.StatusForbidden)
 	})
 
 	t.Run("analytics scope", func(t *testing.T) {

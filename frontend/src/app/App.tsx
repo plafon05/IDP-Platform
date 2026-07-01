@@ -23,8 +23,9 @@ import { TemplatesPage } from '../pages/TemplatesPage';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
+const EmployeeProfilePage = lazy(() => import('../pages/EmployeeProfilePage').then((module) => ({ default: module.EmployeeProfilePage })));
 
-type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile';
+type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile' | 'employee-profile';
 type NavItem = {
 	id: Exclude<Section, 'profile'> | 'settings';
   icon: typeof LayoutDashboard;
@@ -34,6 +35,7 @@ type NavItem = {
 
 function sectionFromPath(): Section {
   const value = window.location.pathname.slice(1);
+  if (value.startsWith('employees/')) return 'employee-profile';
   return value === 'users' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
 }
 
@@ -108,6 +110,7 @@ export function App() {
     analytics: 'Аналитика развития',
     templates: 'Шаблоны ИПР',
     profile: 'Профиль пользователя',
+    'employee-profile': 'Профиль сотрудника',
   }[section];
   const breadcrumb = {
     dashboard: 'Главная / Дашборд',
@@ -117,6 +120,7 @@ export function App() {
     analytics: 'Главная / Аналитика',
     templates: 'Главная / Шаблоны ИПР',
     profile: 'Главная / Профиль',
+    'employee-profile': 'Главная / Сотрудники / Профиль',
   }[section];
 
   return (
@@ -193,6 +197,7 @@ export function App() {
           {section === 'catalog' && <CatalogPage />}
           {section === 'plans' && <IDPsPage />}
           {section === 'templates' && <TemplatesPage />}
+          {section === 'employee-profile' && <Suspense fallback={<div className="empty-state">Загрузка профиля...</div>}><EmployeeProfilePage employeeID={window.location.pathname.split('/')[2] ?? ''} /></Suspense>}
           {section === 'analytics' && <Suspense fallback={<div className="empty-state">Загрузка аналитики...</div>}><AnalyticsPage /></Suspense>}
           {section === 'dashboard' && <Suspense fallback={<div className="empty-state">Загрузка дашборда...</div>}><DashboardPage /></Suspense>}
         </main>

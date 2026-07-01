@@ -1015,6 +1015,128 @@ main {
   }
 }
 
+.employee-profile-page {
+  display: grid;
+  gap: 20px;
+}
+
+.profile-back {
+  width: fit-content;
+}
+
+.employee-profile-header {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 4px 0 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.employee-profile-avatar {
+  display: grid;
+  width: 88px;
+  height: 88px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.employee-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.employee-profile-header h2,
+.employee-profile-header p {
+  margin: 0;
+}
+
+.employee-profile-header > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.employee-profile-header > div:nth-child(2) span,
+.employee-profile-header p {
+  color: #64748b;
+}
+
+.employee-profile-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 20px;
+}
+
+.employee-profile-facts span {
+  display: grid;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.employee-profile-facts strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.employee-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.employee-profile-chart {
+  height: 300px;
+  min-width: 0;
+}
+
+.employee-idp-history {
+  display: grid;
+}
+
+.employee-idp-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(180px, 0.7fr);
+  align-items: center;
+  gap: 18px;
+  padding: 14px 4px;
+  border-bottom: 1px solid #e2e8f0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.employee-idp-row:hover {
+  background: #f8fafc;
+}
+
+.employee-idp-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.employee-idp-row > div:first-child span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .employee-profile-header,
+  .employee-idp-row {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-profile-facts,
+  .employee-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .avatar-card {
   justify-items: center;
   text-align: center;

@@ -52,6 +52,27 @@ type IDPSummary struct {
 	Progress       int     `json:"progress"`
 }
 
+type EmployeeProfile struct {
+	User           User                `json:"user"`
+	ManagerName    *string             `json:"manager_name,omitempty"`
+	DepartmentName *string             `json:"department_name,omitempty"`
+	IDPs           []IDPSummary        `json:"idps"`
+	Progress       []ProgressPoint     `json:"progress"`
+	Competencies   []CompetencyProfile `json:"competencies"`
+}
+
+type ProgressPoint struct {
+	Week     string `json:"week"`
+	Progress int    `json:"progress"`
+}
+
+type CompetencyProfile struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	CurrentLevel int    `json:"current_level"`
+	TargetLevel  int    `json:"target_level"`
+}
+
 type ListResult struct {
 	Data []User   `json:"data"`
 	Meta ListMeta `json:"meta"`
@@ -280,6 +301,80 @@ func (s *Service) ListIDPs(ctx context.Context, userID string) ([]IDPSummary, er
 	}
 
 	return result, rows.Err()
+}
+
+func (s *Service) EmployeeProfile(ctx context.Context, userID string) (*EmployeeProfile, error) {
+	result := &EmployeeProfile{IDPs: []IDPSummary{}, Progress: []ProgressPoint{}, Competencies: []CompetencyProfile{}}
+	err := s.db.QueryRow(ctx, `
+		SELECT u.id::text,u.email,u.first_name,u.last_name,u.middle_name,u.position,u.manager_id::text,u.avatar_url,u.is_active,
+			NULLIF(concat_ws(' ',m.last_name,m.first_name,m.middle_name),''),d.name
+		FROM users u LEFT JOIN users m ON m.id=u.manager_id LEFT JOIN departments d ON d.id=u.department_id
+		WHERE u.id=$1
+	`, userID).Scan(&result.User.ID, &result.User.Email, &result.User.FirstName, &result.User.LastName, &result.User.MiddleName,
+		&result.User.Position, &result.User.ManagerID, &result.User.AvatarURL, &result.User.IsActive, &result.ManagerName, &result.DepartmentName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	result.User.Roles, err = s.roles(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	result.IDPs, err = s.ListIDPs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, `
+		WITH weeks AS (
+			SELECT generate_series(date_trunc('week',NOW()-INTERVAL '6 months'),date_trunc('week',NOW()),INTERVAL '1 week') week
+		)
+		SELECT w.week::date,COALESCE(ROUND(AVG(CASE WHEN t.created_at<w.week+INTERVAL '1 week' THEN
+			COALESCE((SELECT (a.new_value->>'progress')::int FROM audit_logs a
+				WHERE a.entity_type='task' AND a.entity_id=t.id AND a.action='task.progress_changed'
+					AND a.created_at<w.week+INTERVAL '1 week' ORDER BY a.created_at DESC LIMIT 1),
+				CASE WHEN t.updated_at<w.week+INTERVAL '1 week' THEN t.progress ELSE 0 END)
+		END))::int,0)
+		FROM weeks w LEFT JOIN tasks t ON t.idp_id IN(SELECT id FROM idps WHERE employee_id=$1) AND t.deleted_at IS NULL
+		GROUP BY w.week ORDER BY w.week
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var point ProgressPoint
+		var week time.Time
+		if err := rows.Scan(&week, &point.Progress); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		point.Week = week.Format(time.DateOnly)
+		result.Progress = append(result.Progress, point)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	competencyRows, err := s.db.Query(ctx, `
+		SELECT c.id::text,c.name,COALESCE(MAX(ic.current_level),0)::int,MAX(ic.target_level)::int
+		FROM idp_competencies ic JOIN competencies c ON c.id=ic.competency_id
+		JOIN idps i ON i.id=ic.idp_id WHERE i.employee_id=$1
+		GROUP BY c.id ORDER BY c.name
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer competencyRows.Close()
+	for competencyRows.Next() {
+		var item CompetencyProfile
+		if err := competencyRows.Scan(&item.ID, &item.Name, &item.CurrentLevel, &item.TargetLevel); err != nil {
+			return nil, err
+		}
+		result.Competencies = append(result.Competencies, item)
+	}
+	return result, competencyRows.Err()
 }
 
 func (s *Service) IsDirectManager(ctx context.Context, managerID, employeeID string) (bool, error) {

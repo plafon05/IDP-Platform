@@ -187,6 +187,30 @@ func (h usersHandler) idps(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, result)
 }
 
+func (h usersHandler) employeeProfile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := accessClaimsFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+	userID := r.PathValue("id")
+	allowed, err := h.canReadUserIDPs(r, claims.UserID, claims.Roles, userID)
+	if err != nil {
+		httpjson.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+		return
+	}
+	if !allowed {
+		httpjson.WriteError(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
+		return
+	}
+	result, err := h.service.EmployeeProfile(r.Context(), userID)
+	if err != nil {
+		writeUsersError(w, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, result)
+}
+
 func (h usersHandler) canReadUserIDPs(r *http.Request, currentUserID string, roles []string, userID string) (bool, error) {
 	if currentUserID == userID || hasRole(roles, "hr_admin") {
 		return true, nil
