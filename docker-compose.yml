@@ -111,6 +111,20 @@ services:
     depends_on:
       - backend
 
+  demo-seed:
+    image: postgres:16-alpine
+    profiles: ["demo"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-idp}
+      POSTGRES_DB: ${POSTGRES_DB:-idp}
+      POSTGRES_USER: ${POSTGRES_USER:-idp}
+    volumes:
+      - ./backend/demo/seed.sql:/seed.sql:ro
+    command: ["sh", "-c", "psql -v ON_ERROR_STOP=1 -h postgres -U $${POSTGRES_USER} -d $${POSTGRES_DB} -f /seed.sql"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

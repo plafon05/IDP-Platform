@@ -39,6 +39,20 @@ go mod download
 go run ./cmd/server
 ```
 
+## Демо-данные
+
+Для наполнения локальной базы наглядными данными:
+
+```bash
+docker compose --profile demo run --rm demo-seed
+```
+
+Команду можно запускать повторно. Демо-аккаунты используют пароль `Demo12345`:
+
+- Руководитель: `manager.demo@idp.local`
+- Сотрудник: `alexey.demo@idp.local`
+- Сотрудник: `maria.demo@idp.local`
+
 ## Email в development
 
 API ставит письма в Redis, а отдельный `email-worker` отправляет их через SMTP. Mailpit перехватывает письма локально и не отправляет их реальным получателям. Параметры SMTP и имя очереди задаются в `.env`.
