@@ -93,6 +93,41 @@ func (h idpHandler) get(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, result)
 }
 
+func (h idpHandler) export(w http.ResponseWriter, r *http.Request) {
+	access, ok := idpAccess(r)
+	if !ok {
+		httpjson.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid access token")
+		return
+	}
+	doc, err := h.service.Export(r.Context(), access, r.PathValue("id"))
+	if err != nil {
+		writeIDPError(w, err)
+		return
+	}
+	format := r.PathValue("format")
+	var data []byte
+	var contentType, extension string
+	switch format {
+	case "xlsx":
+		data, err = doc.XLSX()
+		contentType, extension = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+	case "pdf":
+		data, err = doc.PDF()
+		contentType, extension = "application/pdf", "pdf"
+	default:
+		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FORMAT", "Export format must be xlsx or pdf")
+		return
+	}
+	if err != nil {
+		writeIDPError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", `attachment; filename="idp.`+extension+`"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (h idpHandler) update(w http.ResponseWriter, r *http.Request) {
 	access, ok := idpAccess(r)
 	if !ok {

@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, ChevronDown, ChevronUp, Edit3, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
+import { Archive, CheckCircle2, ChevronDown, ChevronUp, Edit3, FileSpreadsheet, FileText, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { listCompetencies, type Competency } from '../shared/api/catalog';
@@ -6,6 +6,7 @@ import {
   archiveIDP,
   changeIDPStatus,
   createIDP,
+  exportIDP,
   getIDP,
   listIDPs,
   updateIDP,
@@ -295,6 +296,8 @@ export function IDPsPage() {
                 </div>
                 {plan.cancel_reason && <p className="cancel-reason">Причина отмены: {plan.cancel_reason}</p>}
                 <div className="row-actions">
+                  <button className="icon-button" onClick={() => void exportIDP(plan.id, 'xlsx', plan.title)} title="Скачать XLSX" type="button" aria-label="Скачать XLSX"><FileSpreadsheet size={18} /></button>
+                  <button className="icon-button" onClick={() => void exportIDP(plan.id, 'pdf', plan.title)} title="Скачать PDF" type="button" aria-label="Скачать PDF"><FileText size={18} /></button>
                   <button
                     className="secondary-button compact"
                     onClick={() => void toggleTasks(plan)}

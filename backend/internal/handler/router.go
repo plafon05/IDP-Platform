@@ -84,6 +84,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.Handle("GET /api/v1/idps", authMiddleware(cfg, http.HandlerFunc(idpHandlers.list)))
 	mux.Handle("POST /api/v1/idps", authMiddleware(cfg, http.HandlerFunc(idpHandlers.create)))
 	mux.Handle("GET /api/v1/idps/{id}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.get)))
+	mux.Handle("GET /api/v1/idps/{id}/export/{format}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.export)))
 	mux.Handle("PUT /api/v1/idps/{id}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.update)))
 	mux.Handle("PATCH /api/v1/idps/{id}/status", authMiddleware(cfg, http.HandlerFunc(idpHandlers.changeStatus)))
 	mux.Handle("DELETE /api/v1/idps/{id}", authMiddleware(cfg, http.HandlerFunc(idpHandlers.archive)))

@@ -76,3 +76,13 @@ export async function changeIDPStatus(id: string, status: IDPStatus, comment?: s
 export async function archiveIDP(id: string) {
   await api.delete(`/api/v1/idps/${id}`);
 }
+
+export async function exportIDP(id: string, format: 'xlsx' | 'pdf', title: string) {
+  const response = await api.get<Blob>(`/api/v1/idps/${id}/export/${format}`, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${title.replace(/[^a-zA-Zа-яА-ЯёЁ0-9_-]+/g, '_')}.${format}`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
