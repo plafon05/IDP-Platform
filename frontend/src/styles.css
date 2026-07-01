@@ -2447,16 +2447,8 @@ main {
   .topbar-actions {
     display: grid;
     width: 100%;
-    grid-template-columns: 1fr repeat(4, 40px);
+    grid-template-columns: repeat(4, 40px);
     justify-content: end;
-  }
-
-  .topbar-actions .search-field {
-    grid-column: 1 / -1;
-  }
-
-  .topbar-actions .search-field + .icon-button {
-    grid-column: 2;
   }
 
   .metrics-grid {

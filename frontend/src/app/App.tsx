@@ -8,7 +8,6 @@ import {
   LibraryBig,
   LogOut,
   Moon,
-  Search,
   Settings,
   Sun,
   Users,
@@ -192,10 +191,6 @@ export function App() {
           </div>
 
           <div className="topbar-actions">
-            <label className="search-field">
-              <Search size={18} aria-hidden="true" />
-              <input placeholder="Поиск сотрудников и ИПР" />
-            </label>
             <button className="icon-button" onClick={openNotificationSettings} type="button" aria-label="Настройки уведомлений" title="Настройки уведомлений">
               <Bell size={20} />
             </button>
