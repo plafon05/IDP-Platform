@@ -131,6 +131,38 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		}
 	})
 
+	t.Run("template creates draft plan", func(t *testing.T) {
+		f.request(t, employeeToken, http.MethodGet, "/api/v1/idp-templates", nil, http.StatusForbidden)
+		response := f.request(t, managerToken, http.MethodPost, "/api/v1/idp-templates", map[string]any{
+			"title": "Backend template", "goals": "Grow skills", "is_active": true,
+			"tasks":        []map[string]any{{"title": "Course", "priority": "medium", "due_offset_days": 30}},
+			"competencies": []any{},
+		}, http.StatusCreated)
+		var template struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &template); err != nil {
+			t.Fatal(err)
+		}
+		response = f.request(t, managerToken, http.MethodPost, "/api/v1/idp-templates/"+template.ID+"/apply", map[string]any{
+			"employee_id": f.employeeID, "title": "Plan from template", "start_date": "2026-02-01", "end_date": "2026-06-01",
+		}, http.StatusCreated)
+		var plan struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &plan); err != nil {
+			t.Fatal(err)
+		}
+		var status string
+		var tasks int
+		if err := f.db.QueryRow(context.Background(), `SELECT i.status,COUNT(t.id)::int FROM idps i LEFT JOIN tasks t ON t.idp_id=i.id WHERE i.id=$1 GROUP BY i.id`, plan.ID).Scan(&status, &tasks); err != nil {
+			t.Fatal(err)
+		}
+		if status != "draft" || tasks != 1 {
+			t.Fatalf("unexpected template result: status=%s tasks=%d", status, tasks)
+		}
+	})
+
 	t.Run("only manager edits plan", func(t *testing.T) {
 		payload := map[string]any{
 			"employee_id": f.employeeID, "title": "Updated plan", "goals": "**Goal**",

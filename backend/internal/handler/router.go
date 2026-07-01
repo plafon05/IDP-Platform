@@ -16,6 +16,7 @@ import (
 	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/notification"
 	"idp-platform/backend/internal/tasks"
+	"idp-platform/backend/internal/templates"
 	"idp-platform/backend/internal/users"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,6 +34,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	dashboardHandlers := dashboardHandler{service: dashboard.NewService(dbPool)}
 	notificationHandlers := notificationHandler{service: notification.NewPreferencesService(dbPool, cfg.JWTSecret)}
 	analyticsHandlers := analyticsHandler{service: analytics.NewService(dbPool)}
+	templateHandlers := templatesHandler{service: templates.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -47,6 +49,11 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
 	mux.Handle("GET /api/v1/dashboard", authMiddleware(cfg, http.HandlerFunc(dashboardHandlers.get)))
 	mux.Handle("GET /api/v1/analytics/overview", authMiddleware(cfg, http.HandlerFunc(analyticsHandlers.overview)))
+	mux.Handle("GET /api/v1/idp-templates", authMiddleware(cfg, http.HandlerFunc(templateHandlers.list)))
+	mux.Handle("POST /api/v1/idp-templates", authMiddleware(cfg, http.HandlerFunc(templateHandlers.create)))
+	mux.Handle("PUT /api/v1/idp-templates/{id}", authMiddleware(cfg, http.HandlerFunc(templateHandlers.update)))
+	mux.Handle("DELETE /api/v1/idp-templates/{id}", authMiddleware(cfg, http.HandlerFunc(templateHandlers.archive)))
+	mux.Handle("POST /api/v1/idp-templates/{id}/apply", authMiddleware(cfg, http.HandlerFunc(templateHandlers.apply)))
 	mux.Handle("GET /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.getPreferences)))
 	mux.Handle("PUT /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.updatePreferences)))
 	mux.Handle("PUT /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateProfile)))
@@ -178,12 +185,12 @@ func cors(origins []string) func(http.Handler) http.Handler {
 
 func routeOrNotFound(mux *http.ServeMux, notFound http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handler, pattern := mux.Handler(r)
+		_, pattern := mux.Handler(r)
 		if pattern == "" {
 			notFound.ServeHTTP(w, r)
 			return
 		}
-		handler.ServeHTTP(w, r)
+		mux.ServeHTTP(w, r)
 	})
 }
 

@@ -2,6 +2,7 @@ import {
   Bell,
   BookOpenCheck,
   ChartNoAxesCombined,
+  ClipboardCopy,
   LayoutDashboard,
   LibraryBig,
   LogOut,
@@ -18,11 +19,12 @@ import { ProfilePage } from '../pages/ProfilePage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { UsersPage } from '../pages/UsersPage';
 import { UnsubscribePage } from '../pages/UnsubscribePage';
+import { TemplatesPage } from '../pages/TemplatesPage';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
 
-type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'analytics' | 'profile';
+type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile';
 type NavItem = {
 	id: Exclude<Section, 'profile'> | 'settings';
   icon: typeof LayoutDashboard;
@@ -32,7 +34,7 @@ type NavItem = {
 
 function sectionFromPath(): Section {
   const value = window.location.pathname.slice(1);
-  return value === 'users' || value === 'catalog' || value === 'plans' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
+  return value === 'users' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
 }
 
 export function App() {
@@ -57,6 +59,7 @@ export function App() {
 
     if (user?.roles.includes('manager') || user?.roles.includes('hr_admin')) {
       items.splice(2, 0, { id: 'analytics' as const, icon: ChartNoAxesCombined, label: 'Аналитика' });
+      items.splice(2, 0, { id: 'templates' as const, icon: ClipboardCopy, label: 'Шаблоны ИПР' });
     }
 
     if (user?.roles.includes('hr_admin')) {
@@ -103,6 +106,7 @@ export function App() {
     catalog: 'Справочники развития',
     plans: 'Индивидуальные планы развития',
     analytics: 'Аналитика развития',
+    templates: 'Шаблоны ИПР',
     profile: 'Профиль пользователя',
   }[section];
   const breadcrumb = {
@@ -111,6 +115,7 @@ export function App() {
     catalog: 'Главная / Справочники',
     plans: 'Главная / ИПР',
     analytics: 'Главная / Аналитика',
+    templates: 'Главная / Шаблоны ИПР',
     profile: 'Главная / Профиль',
   }[section];
 
@@ -137,6 +142,7 @@ export function App() {
                   item.id === 'users' ||
                   item.id === 'catalog' ||
                   item.id === 'plans' ||
+                  item.id === 'templates' ||
                   item.id === 'analytics'
                 ) {
                   navigate(item.id);
@@ -186,6 +192,7 @@ export function App() {
           {section === 'users' && <UsersPage />}
           {section === 'catalog' && <CatalogPage />}
           {section === 'plans' && <IDPsPage />}
+          {section === 'templates' && <TemplatesPage />}
           {section === 'analytics' && <Suspense fallback={<div className="empty-state">Загрузка аналитики...</div>}><AnalyticsPage /></Suspense>}
           {section === 'dashboard' && <Suspense fallback={<div className="empty-state">Загрузка дашборда...</div>}><DashboardPage /></Suspense>}
         </main>
