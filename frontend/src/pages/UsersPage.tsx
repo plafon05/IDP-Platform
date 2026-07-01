@@ -13,6 +13,7 @@ import {
   type UserRole,
   updateUser,
 } from '../shared/api/users';
+import { listDepartments, type Department } from '../shared/api/departments';
 
 const roleLabels: Record<UserRole, string> = {
   employee: 'Сотрудник',
@@ -27,6 +28,7 @@ const emptyForm = {
   last_name: '',
   middle_name: '',
   position: '',
+  department_id: '',
   manager_id: '',
   manager: false,
   hr_admin: false,
@@ -45,6 +47,7 @@ export function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportUsersResult | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   const activeCount = useMemo(() => users.filter((user) => user.is_active).length, [users]);
   const managerOptions = useMemo(
@@ -67,6 +70,7 @@ export function UsersPage() {
 
   useEffect(() => {
     void loadUsers('');
+    void listDepartments().then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -135,6 +139,7 @@ export function UsersPage() {
       last_name: user.last_name,
       middle_name: user.middle_name ?? '',
       position: user.position,
+      department_id: user.department_id ?? '',
       manager_id: user.manager_id ?? '',
       manager: user.roles.includes('manager'),
       hr_admin: user.roles.includes('hr_admin'),
@@ -158,6 +163,7 @@ export function UsersPage() {
         last_name: editForm.last_name.trim(),
         middle_name: editForm.middle_name.trim() || undefined,
         position: editForm.position.trim(),
+        department_id: editForm.department_id || undefined,
         manager_id: editForm.manager_id || undefined,
         is_active: editIsActive,
         roles: rolesFromForm(editForm),
@@ -265,7 +271,7 @@ export function UsersPage() {
                     <span>{user.email}</span>
                   </div>
                 </div>
-                <span className="user-position">{user.position}</span>
+                <span className="user-position">{user.position}{user.department_name && <small>{user.department_name}</small>}</span>
                 <div className="role-list">
                   {user.roles.map((role) => (
                     <span className="role-chip" key={role}>
@@ -381,6 +387,7 @@ export function UsersPage() {
                     ))}
                 </select>
               </label>
+              <label className="form-field"><span>Подразделение</span><select value={editForm.department_id} onChange={(event) => setFormValue(setEditForm, 'department_id', event.target.value)}><option value="">Не назначено</option>{flattenDepartments(departments).map((item) => <option key={item.id} value={item.id}>{'— '.repeat(item.depth - 1)}{item.name}</option>)}</select></label>
 
               <div className="checkbox-list">
                 <label>
@@ -494,6 +501,7 @@ export function UsersPage() {
                 ))}
               </select>
             </label>
+            <label className="form-field"><span>Подразделение</span><select value={form.department_id} onChange={(event) => setFormValue(setForm, 'department_id', event.target.value)}><option value="">Не назначено</option>{flattenDepartments(departments).map((item) => <option key={item.id} value={item.id}>{'— '.repeat(item.depth - 1)}{item.name}</option>)}</select></label>
 
             <div className="checkbox-list">
               <label>
@@ -567,6 +575,7 @@ function toPayload(form: UserForm): CreateUserPayload {
     last_name: form.last_name.trim(),
     middle_name: form.middle_name.trim() || undefined,
     position: form.position.trim(),
+    department_id: form.department_id || undefined,
     manager_id: form.manager_id || undefined,
     roles: rolesFromForm(form),
   };
@@ -595,3 +604,5 @@ function setFormValue<T extends keyof UserForm>(
 function initials(user: User) {
   return `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}`.toUpperCase();
 }
+
+function flattenDepartments(items: Department[]): Department[] { return items.flatMap((item) => [item, ...flattenDepartments(item.children)]); }

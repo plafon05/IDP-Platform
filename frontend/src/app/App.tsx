@@ -3,6 +3,7 @@ import {
   BookOpenCheck,
   ChartNoAxesCombined,
   ClipboardCopy,
+  Building2,
   LayoutDashboard,
   LibraryBig,
   LogOut,
@@ -20,12 +21,13 @@ import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { UsersPage } from '../pages/UsersPage';
 import { UnsubscribePage } from '../pages/UnsubscribePage';
 import { TemplatesPage } from '../pages/TemplatesPage';
+import { DepartmentsPage } from '../pages/DepartmentsPage';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
 const EmployeeProfilePage = lazy(() => import('../pages/EmployeeProfilePage').then((module) => ({ default: module.EmployeeProfilePage })));
 
-type Section = 'dashboard' | 'users' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile' | 'employee-profile';
+type Section = 'dashboard' | 'users' | 'departments' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile' | 'employee-profile';
 type NavItem = {
 	id: Exclude<Section, 'profile'> | 'settings';
   icon: typeof LayoutDashboard;
@@ -36,7 +38,7 @@ type NavItem = {
 function sectionFromPath(): Section {
   const value = window.location.pathname.slice(1);
   if (value.startsWith('employees/')) return 'employee-profile';
-  return value === 'users' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
+  return value === 'users' || value === 'departments' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
 }
 
 export function App() {
@@ -66,7 +68,8 @@ export function App() {
 
     if (user?.roles.includes('hr_admin')) {
       items.splice(1, 0, { id: 'users' as const, icon: Users, label: 'Пользователи' });
-      items.splice(2, 0, { id: 'catalog' as const, icon: LibraryBig, label: 'Справочники' });
+      items.splice(2, 0, { id: 'departments' as const, icon: Building2, label: 'Подразделения' });
+      items.splice(3, 0, { id: 'catalog' as const, icon: LibraryBig, label: 'Справочники' });
     }
 
     return items;
@@ -105,6 +108,7 @@ export function App() {
   const pageTitle = {
     dashboard: 'Индивидуальные планы развития',
     users: 'Управление пользователями',
+    departments: 'Структура организации',
     catalog: 'Справочники развития',
     plans: 'Индивидуальные планы развития',
     analytics: 'Аналитика развития',
@@ -115,6 +119,7 @@ export function App() {
   const breadcrumb = {
     dashboard: 'Главная / Дашборд',
     users: 'Главная / Пользователи',
+    departments: 'Главная / Подразделения',
     catalog: 'Главная / Справочники',
     plans: 'Главная / ИПР',
     analytics: 'Главная / Аналитика',
@@ -144,6 +149,7 @@ export function App() {
                 if (
                   item.id === 'dashboard' ||
                   item.id === 'users' ||
+                  item.id === 'departments' ||
                   item.id === 'catalog' ||
                   item.id === 'plans' ||
                   item.id === 'templates' ||
@@ -194,6 +200,7 @@ export function App() {
         <main>
           {section === 'profile' && <ProfilePage />}
           {section === 'users' && <UsersPage />}
+          {section === 'departments' && <DepartmentsPage />}
           {section === 'catalog' && <CatalogPage />}
           {section === 'plans' && <IDPsPage />}
           {section === 'templates' && <TemplatesPage />}

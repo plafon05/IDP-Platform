@@ -9,6 +9,8 @@ export type User = {
   last_name: string;
   middle_name?: string;
   position: string;
+  department_id?: string;
+  department_name?: string;
   manager_id?: string;
   avatar_url?: string;
   is_active: boolean;
@@ -32,6 +34,7 @@ export type CreateUserPayload = {
   last_name: string;
   middle_name?: string;
   position: string;
+  department_id?: string;
   manager_id?: string;
   roles: UserRole[];
 };
@@ -41,6 +44,7 @@ export type UpdateUserPayload = {
   last_name: string;
   middle_name?: string;
   position: string;
+  department_id?: string;
   manager_id?: string;
   is_active: boolean;
   roles: UserRole[];

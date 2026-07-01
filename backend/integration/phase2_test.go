@@ -111,6 +111,28 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		f.request(t, outsiderToken, http.MethodGet, profilePath, nil, http.StatusForbidden)
 	})
 
+	t.Run("department hierarchy", func(t *testing.T) {
+		f.request(t, employeeToken, http.MethodGet, "/api/v1/departments", nil, http.StatusOK)
+		f.request(t, employeeToken, http.MethodPost, "/api/v1/departments", map[string]any{"name": "Root"}, http.StatusForbidden)
+		response := f.request(t, hrToken, http.MethodPost, "/api/v1/departments", map[string]any{"name": "Root"}, http.StatusCreated)
+		var parent struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &parent); err != nil {
+			t.Fatal(err)
+		}
+		response = f.request(t, hrToken, http.MethodPost, "/api/v1/departments", map[string]any{"name": "Child", "parent_id": parent.ID}, http.StatusCreated)
+		var child struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &child); err != nil {
+			t.Fatal(err)
+		}
+		f.request(t, hrToken, http.MethodDelete, "/api/v1/departments/"+parent.ID, nil, http.StatusConflict)
+		f.request(t, hrToken, http.MethodDelete, "/api/v1/departments/"+child.ID, nil, http.StatusNoContent)
+		f.request(t, hrToken, http.MethodDelete, "/api/v1/departments/"+parent.ID, nil, http.StatusNoContent)
+	})
+
 	t.Run("analytics scope", func(t *testing.T) {
 		path := "/api/v1/analytics/overview?from=2026-01-01&to=2026-12-31"
 		f.request(t, employeeToken, http.MethodGet, path, nil, http.StatusForbidden)

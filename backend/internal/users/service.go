@@ -26,16 +26,18 @@ type Service struct {
 }
 
 type User struct {
-	ID         string   `json:"id"`
-	Email      string   `json:"email"`
-	FirstName  string   `json:"first_name"`
-	LastName   string   `json:"last_name"`
-	MiddleName *string  `json:"middle_name,omitempty"`
-	Position   string   `json:"position"`
-	ManagerID  *string  `json:"manager_id,omitempty"`
-	AvatarURL  *string  `json:"avatar_url,omitempty"`
-	IsActive   bool     `json:"is_active"`
-	Roles      []string `json:"roles"`
+	ID             string   `json:"id"`
+	Email          string   `json:"email"`
+	FirstName      string   `json:"first_name"`
+	LastName       string   `json:"last_name"`
+	MiddleName     *string  `json:"middle_name,omitempty"`
+	Position       string   `json:"position"`
+	DepartmentID   *string  `json:"department_id,omitempty"`
+	DepartmentName *string  `json:"department_name,omitempty"`
+	ManagerID      *string  `json:"manager_id,omitempty"`
+	AvatarURL      *string  `json:"avatar_url,omitempty"`
+	IsActive       bool     `json:"is_active"`
+	Roles          []string `json:"roles"`
 }
 
 type IDPSummary struct {
@@ -92,24 +94,26 @@ type ListParams struct {
 }
 
 type CreateInput struct {
-	Email      string
-	Password   string
-	FirstName  string
-	LastName   string
-	MiddleName *string
-	Position   string
-	ManagerID  *string
-	Roles      []string
+	Email        string
+	Password     string
+	FirstName    string
+	LastName     string
+	MiddleName   *string
+	Position     string
+	DepartmentID *string
+	ManagerID    *string
+	Roles        []string
 }
 
 type UpdateInput struct {
-	FirstName  string
-	LastName   string
-	MiddleName *string
-	Position   string
-	ManagerID  *string
-	IsActive   bool
-	Roles      []string
+	FirstName    string
+	LastName     string
+	MiddleName   *string
+	Position     string
+	DepartmentID *string
+	ManagerID    *string
+	IsActive     bool
+	Roles        []string
 }
 
 type UpdateProfileInput struct {
@@ -162,13 +166,13 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 	}
 
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, avatar_url, is_active
-		FROM users
+		SELECT u.id::text,u.email,u.first_name,u.last_name,u.middle_name,u.position,u.department_id::text,d.name,u.manager_id::text,u.avatar_url,u.is_active
+		FROM users u LEFT JOIN departments d ON d.id=u.department_id
 		WHERE $1 = '%%'
 			OR email ILIKE $1
 			OR first_name ILIKE $1
 			OR last_name ILIKE $1
-		ORDER BY created_at DESC
+		ORDER BY u.created_at DESC
 		LIMIT $2 OFFSET $3
 	`, search, params.Limit, offset)
 	if err != nil {
@@ -188,7 +192,7 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.DepartmentID, &user.DepartmentName, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
 			return nil, err
 		}
 		user.Roles, err = s.roles(ctx, user.ID)
@@ -204,10 +208,9 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 	var user User
 	err := s.db.QueryRow(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, avatar_url, is_active
-		FROM users
-		WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.AvatarURL, &user.IsActive)
+		SELECT u.id::text,u.email,u.first_name,u.last_name,u.middle_name,u.position,u.department_id::text,d.name,u.manager_id::text,u.avatar_url,u.is_active
+		FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.id=$1
+	`, userID).Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.DepartmentID, &user.DepartmentName, &user.ManagerID, &user.AvatarURL, &user.IsActive)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -225,9 +228,8 @@ func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
 
 func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]User, error) {
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, email, first_name, last_name, middle_name, position, manager_id::text, avatar_url, is_active
-		FROM users
-		WHERE manager_id = $1 AND is_active = true
+		SELECT u.id::text,u.email,u.first_name,u.last_name,u.middle_name,u.position,u.department_id::text,d.name,u.manager_id::text,u.avatar_url,u.is_active
+		FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.manager_id=$1 AND u.is_active=true
 		ORDER BY last_name, first_name
 	`, managerID)
 	if err != nil {
@@ -238,7 +240,7 @@ func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]Use
 	result := make([]User, 0)
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.DepartmentID, &user.DepartmentName, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
 			return nil, err
 		}
 		user.Roles, err = s.roles(ctx, user.ID)
@@ -306,12 +308,12 @@ func (s *Service) ListIDPs(ctx context.Context, userID string) ([]IDPSummary, er
 func (s *Service) EmployeeProfile(ctx context.Context, userID string) (*EmployeeProfile, error) {
 	result := &EmployeeProfile{IDPs: []IDPSummary{}, Progress: []ProgressPoint{}, Competencies: []CompetencyProfile{}}
 	err := s.db.QueryRow(ctx, `
-		SELECT u.id::text,u.email,u.first_name,u.last_name,u.middle_name,u.position,u.manager_id::text,u.avatar_url,u.is_active,
+		SELECT u.id::text,u.email,u.first_name,u.last_name,u.middle_name,u.position,u.department_id::text,d.name,u.manager_id::text,u.avatar_url,u.is_active,
 			NULLIF(concat_ws(' ',m.last_name,m.first_name,m.middle_name),''),d.name
 		FROM users u LEFT JOIN users m ON m.id=u.manager_id LEFT JOIN departments d ON d.id=u.department_id
 		WHERE u.id=$1
 	`, userID).Scan(&result.User.ID, &result.User.Email, &result.User.FirstName, &result.User.LastName, &result.User.MiddleName,
-		&result.User.Position, &result.User.ManagerID, &result.User.AvatarURL, &result.User.IsActive, &result.ManagerName, &result.DepartmentName)
+		&result.User.Position, &result.User.DepartmentID, &result.User.DepartmentName, &result.User.ManagerID, &result.User.AvatarURL, &result.User.IsActive, &result.ManagerName, &result.DepartmentName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -403,10 +405,10 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*User, error) 
 
 	var userID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO users (email, password_hash, first_name, last_name, middle_name, position, manager_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (email,password_hash,first_name,last_name,middle_name,position,department_id,manager_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 		RETURNING id::text
-	`, strings.TrimSpace(input.Email), passwordHash, input.FirstName, input.LastName, input.MiddleName, input.Position, input.ManagerID).Scan(&userID)
+	`, strings.TrimSpace(input.Email), passwordHash, input.FirstName, input.LastName, input.MiddleName, input.Position, input.DepartmentID, input.ManagerID).Scan(&userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_email_key") {
 			return nil, ErrEmailExists
@@ -477,11 +479,12 @@ func (s *Service) Update(ctx context.Context, userID string, input UpdateInput) 
 			last_name = $3,
 			middle_name = $4,
 			position = $5,
-			manager_id = $6,
-			is_active = $7,
+			department_id = $6,
+			manager_id = $7,
+			is_active = $8,
 			updated_at = NOW()
 		WHERE id = $1
-	`, userID, input.FirstName, input.LastName, input.MiddleName, input.Position, input.ManagerID, input.IsActive)
+	`, userID, input.FirstName, input.LastName, input.MiddleName, input.Position, input.DepartmentID, input.ManagerID, input.IsActive)
 	if err != nil {
 		return nil, err
 	}

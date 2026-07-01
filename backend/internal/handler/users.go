@@ -25,24 +25,26 @@ type AvatarStore interface {
 }
 
 type createUserRequest struct {
-	Email      string   `json:"email"`
-	Password   string   `json:"password"`
-	FirstName  string   `json:"first_name"`
-	LastName   string   `json:"last_name"`
-	MiddleName *string  `json:"middle_name"`
-	Position   string   `json:"position"`
-	ManagerID  *string  `json:"manager_id"`
-	Roles      []string `json:"roles"`
+	Email        string   `json:"email"`
+	Password     string   `json:"password"`
+	FirstName    string   `json:"first_name"`
+	LastName     string   `json:"last_name"`
+	MiddleName   *string  `json:"middle_name"`
+	Position     string   `json:"position"`
+	DepartmentID *string  `json:"department_id"`
+	ManagerID    *string  `json:"manager_id"`
+	Roles        []string `json:"roles"`
 }
 
 type updateUserRequest struct {
-	FirstName  string   `json:"first_name"`
-	LastName   string   `json:"last_name"`
-	MiddleName *string  `json:"middle_name"`
-	Position   string   `json:"position"`
-	ManagerID  *string  `json:"manager_id"`
-	IsActive   bool     `json:"is_active"`
-	Roles      []string `json:"roles"`
+	FirstName    string   `json:"first_name"`
+	LastName     string   `json:"last_name"`
+	MiddleName   *string  `json:"middle_name"`
+	Position     string   `json:"position"`
+	DepartmentID *string  `json:"department_id"`
+	ManagerID    *string  `json:"manager_id"`
+	IsActive     bool     `json:"is_active"`
+	Roles        []string `json:"roles"`
 }
 
 type updateProfileRequest struct {
@@ -91,14 +93,15 @@ func (h usersHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.service.Create(r.Context(), users.CreateInput{
-		Email:      req.Email,
-		Password:   req.Password,
-		FirstName:  strings.TrimSpace(req.FirstName),
-		LastName:   strings.TrimSpace(req.LastName),
-		MiddleName: emptyStringToNil(req.MiddleName),
-		Position:   strings.TrimSpace(req.Position),
-		ManagerID:  emptyStringToNil(req.ManagerID),
-		Roles:      req.Roles,
+		Email:        req.Email,
+		Password:     req.Password,
+		FirstName:    strings.TrimSpace(req.FirstName),
+		LastName:     strings.TrimSpace(req.LastName),
+		MiddleName:   emptyStringToNil(req.MiddleName),
+		Position:     strings.TrimSpace(req.Position),
+		DepartmentID: emptyStringToNil(req.DepartmentID),
+		ManagerID:    emptyStringToNil(req.ManagerID),
+		Roles:        req.Roles,
 	})
 	if err != nil {
 		writeUsersError(w, err)
@@ -231,13 +234,14 @@ func (h usersHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.service.Update(r.Context(), userIDFromPath(r), users.UpdateInput{
-		FirstName:  strings.TrimSpace(req.FirstName),
-		LastName:   strings.TrimSpace(req.LastName),
-		MiddleName: emptyStringToNil(req.MiddleName),
-		Position:   strings.TrimSpace(req.Position),
-		ManagerID:  emptyStringToNil(req.ManagerID),
-		IsActive:   req.IsActive,
-		Roles:      req.Roles,
+		FirstName:    strings.TrimSpace(req.FirstName),
+		LastName:     strings.TrimSpace(req.LastName),
+		MiddleName:   emptyStringToNil(req.MiddleName),
+		Position:     strings.TrimSpace(req.Position),
+		DepartmentID: emptyStringToNil(req.DepartmentID),
+		ManagerID:    emptyStringToNil(req.ManagerID),
+		IsActive:     req.IsActive,
+		Roles:        req.Roles,
 	})
 	if err != nil {
 		writeUsersError(w, err)

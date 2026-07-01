@@ -12,6 +12,7 @@ import (
 	"idp-platform/backend/internal/comments"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/dashboard"
+	"idp-platform/backend/internal/departments"
 	"idp-platform/backend/internal/httpjson"
 	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/notification"
@@ -35,6 +36,7 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	notificationHandlers := notificationHandler{service: notification.NewPreferencesService(dbPool, cfg.JWTSecret)}
 	analyticsHandlers := analyticsHandler{service: analytics.NewService(dbPool)}
 	templateHandlers := templatesHandler{service: templates.NewService(dbPool)}
+	departmentHandlers := departmentsHandler{service: departments.NewService(dbPool)}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
@@ -47,6 +49,10 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.HandleFunc("POST /api/v1/auth/reset-password", authHandlers.resetPassword)
 	mux.HandleFunc("POST /api/v1/notifications/unsubscribe", notificationHandlers.unsubscribe)
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
+	mux.Handle("GET /api/v1/departments", authMiddleware(cfg, http.HandlerFunc(departmentHandlers.list)))
+	mux.Handle("POST /api/v1/departments", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(departmentHandlers.create))))
+	mux.Handle("PUT /api/v1/departments/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(departmentHandlers.update))))
+	mux.Handle("DELETE /api/v1/departments/{id}", authMiddleware(cfg, requireRole("hr_admin", http.HandlerFunc(departmentHandlers.delete))))
 	mux.Handle("GET /api/v1/dashboard", authMiddleware(cfg, http.HandlerFunc(dashboardHandlers.get)))
 	mux.Handle("GET /api/v1/analytics/overview", authMiddleware(cfg, http.HandlerFunc(analyticsHandlers.overview)))
 	mux.Handle("GET /api/v1/idp-templates", authMiddleware(cfg, http.HandlerFunc(templateHandlers.list)))
