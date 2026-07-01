@@ -1,5 +1,5 @@
-import { Bell, KeyRound, Save, UserRound } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { Bell, KeyRound, Save, Upload, UserRound } from 'lucide-react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { changePassword, updateAvatar, updateProfile } from '../shared/api/auth';
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '../shared/api/notifications';
@@ -29,6 +29,7 @@ export function ProfilePage() {
   const [notificationStatus, setNotificationStatus] = useState<'loading' | 'idle' | 'saving' | 'saved'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) {
@@ -100,12 +101,9 @@ export function ProfilePage() {
     }
   }
 
-  async function handleAvatarSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const file = formData.get('avatar');
-    if (!(file instanceof File) || file.size === 0) {
-      setError('Выберите файл аватара');
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
       return;
     }
 
@@ -117,10 +115,11 @@ export function ProfilePage() {
       setUser(updatedUser);
       setAvatarStatus('saved');
       setNotice('Аватар загружен');
-      event.currentTarget.reset();
     } catch {
       setError('Не удалось загрузить аватар');
       setAvatarStatus('idle');
+    } finally {
+      event.target.value = '';
     }
   }
 
@@ -144,7 +143,7 @@ export function ProfilePage() {
       {notice && <div className="form-success">{notice}</div>}
 
       <section className="profile-layout">
-        <form className="panel profile-form avatar-card" onSubmit={handleAvatarSubmit}>
+        <section className="panel profile-form avatar-card">
           <div className="panel-header">
             <div>
               <h2>Аватар</h2>
@@ -157,16 +156,12 @@ export function ProfilePage() {
             <AvatarImage user={user} />
           </div>
 
-          <label className="form-field">
-            <span>Файл</span>
-            <input accept="image/jpeg,image/png,image/webp" name="avatar" required type="file" />
-          </label>
-
-          <button className="secondary-button" disabled={avatarStatus === 'saving'} type="submit">
-            <Save size={18} />
-            {avatarStatus === 'saved' ? 'Загружено' : 'Загрузить'}
+          <input className="visually-hidden" accept="image/jpeg,image/png,image/webp" onChange={(event) => void handleAvatarChange(event)} ref={avatarInputRef} type="file" />
+          <button className="secondary-button" disabled={avatarStatus === 'saving'} onClick={() => avatarInputRef.current?.click()} type="button">
+            <Upload size={18} />
+            {avatarStatus === 'saving' ? 'Загрузка...' : avatarStatus === 'saved' ? 'Загружено' : 'Загрузить'}
           </button>
-        </form>
+        </section>
 
         <form className="panel profile-form" onSubmit={handleProfileSubmit}>
           <div className="panel-header">
