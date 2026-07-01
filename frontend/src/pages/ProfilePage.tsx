@@ -252,7 +252,7 @@ export function ProfilePage() {
           </button>
         </form>
 
-        <section className="panel profile-form notification-settings">
+        <section className="panel profile-form notification-settings" id="notifications">
           <div className="panel-header"><div><h2>Уведомления</h2><p>Управление письмами на {user?.email}</p></div><Bell size={20} aria-hidden="true" /></div>
           <NotificationToggle label="Email-уведомления" checked={notifications.email_enabled} onChange={(checked) => setNotifications((current) => ({ ...current, email_enabled: checked }))} />
           <div className="notification-options" aria-disabled={!notifications.email_enabled}>

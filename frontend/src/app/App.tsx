@@ -29,18 +29,17 @@ const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) 
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
 const EmployeeProfilePage = lazy(() => import('../pages/EmployeeProfilePage').then((module) => ({ default: module.EmployeeProfilePage })));
 
-type Section = 'dashboard' | 'users' | 'departments' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile' | 'employee-profile';
+type Section = 'dashboard' | 'users' | 'departments' | 'catalog' | 'plans' | 'templates' | 'analytics' | 'profile' | 'settings' | 'employee-profile';
 type NavItem = {
-	id: Exclude<Section, 'profile'> | 'settings';
+	id: Exclude<Section, 'profile'>;
   icon: typeof LayoutDashboard;
   label: string;
-  disabled?: boolean;
 };
 
 function sectionFromPath(): Section {
   const value = window.location.pathname.slice(1);
   if (value.startsWith('employees/')) return 'employee-profile';
-  return value === 'users' || value === 'departments' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' ? value : 'dashboard';
+  return value === 'users' || value === 'departments' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' || value === 'settings' ? value : 'dashboard';
 }
 
 export function App() {
@@ -68,7 +67,7 @@ export function App() {
     const items: NavItem[] = [
       { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Дашборд' },
       { id: 'plans' as const, icon: BookOpenCheck, label: plansLabel },
-      { id: 'settings' as const, icon: Settings, label: 'Настройки', disabled: true },
+      { id: 'settings' as const, icon: Settings, label: 'Настройки' },
     ];
 
     if (user?.roles.includes('manager') || user?.roles.includes('hr_admin')) {
@@ -84,6 +83,12 @@ export function App() {
 
     return items;
   }, [user?.roles]);
+
+  function openNotificationSettings() {
+    window.history.pushState({}, '', '/settings#notifications');
+    setSection('settings');
+    window.setTimeout(() => document.getElementById('notifications')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
 
   useEffect(() => {
     void bootstrap();
@@ -124,6 +129,7 @@ export function App() {
     analytics: 'Аналитика развития',
     templates: 'Шаблоны ИПР',
     profile: 'Профиль пользователя',
+    settings: 'Настройки',
     'employee-profile': 'Профиль сотрудника',
   }[section];
   const breadcrumb = {
@@ -135,6 +141,7 @@ export function App() {
     analytics: 'Главная / Аналитика',
     templates: 'Главная / Шаблоны ИПР',
     profile: 'Главная / Профиль',
+    settings: 'Главная / Настройки',
     'employee-profile': 'Главная / Сотрудники / Профиль',
   }[section];
 
@@ -153,7 +160,6 @@ export function App() {
           {navItems.map((item) => (
             <button
               className={`nav-item ${section === item.id ? 'active' : ''}`}
-              disabled={item.disabled}
               key={item.label}
               onClick={() => {
                 if (
@@ -163,7 +169,8 @@ export function App() {
                   item.id === 'catalog' ||
                   item.id === 'plans' ||
                   item.id === 'templates' ||
-                  item.id === 'analytics'
+                  item.id === 'analytics' ||
+                  item.id === 'settings'
                 ) {
                   navigate(item.id);
                 }
@@ -189,9 +196,8 @@ export function App() {
               <Search size={18} aria-hidden="true" />
               <input placeholder="Поиск сотрудников и ИПР" />
             </label>
-            <button className="icon-button" type="button" aria-label="Уведомления">
+            <button className="icon-button" onClick={openNotificationSettings} type="button" aria-label="Настройки уведомлений" title="Настройки уведомлений">
               <Bell size={20} />
-              <span className="notification-dot" />
             </button>
             <button className="icon-button" onClick={toggleTheme} type="button" aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -212,6 +218,7 @@ export function App() {
 
         <main>
           {section === 'profile' && <ProfilePage />}
+          {section === 'settings' && <ProfilePage />}
           {section === 'users' && <UsersPage />}
           {section === 'departments' && <DepartmentsPage />}
           {section === 'catalog' && <CatalogPage />}
