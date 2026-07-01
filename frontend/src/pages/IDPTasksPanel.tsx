@@ -53,7 +53,6 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
   const [showForm, setShowForm] = useState(false);
   const [commentTaskID, setCommentTaskID] = useState<string | null>(null);
   const [auditTaskID, setAuditTaskID] = useState<string | null>(null);
-  const [showIDPAudit, setShowIDPAudit] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<TaskFilters>({ sort: 'due_date', order: 'asc' });
@@ -248,12 +247,6 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
           <div className="button-row"><button className="primary-button" disabled={busy} type="submit"><Save size={17} /> Сохранить</button><button className="secondary-button" type="button" onClick={closeForm}><X size={17} /> Отмена</button></div>
         </form>
       )}
-      <CommentsThread entityType="idp" entityID={plan.id} title="Комментарии к ИПР" />
-      <div className="task-panel-heading">
-        <strong>История ИПР</strong>
-        <button className="secondary-button compact" type="button" onClick={() => setShowIDPAudit((value) => !value)}><Activity size={16} />{showIDPAudit ? 'Скрыть' : 'Показать'}</button>
-      </div>
-      {showIDPAudit && <AuditTrail entityType="idp" entityID={plan.id} />}
     </div>
   );
 }

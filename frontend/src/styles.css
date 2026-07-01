@@ -1893,6 +1893,18 @@ main {
   font-size: 13px;
 }
 
+.secondary-button.active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+[data-theme="dark"] .secondary-button.active {
+  border-color: #3b82f6;
+  color: #bfdbfe;
+  background: #1e3a8a;
+}
+
 .comments-thread {
   display: grid;
   gap: 12px;

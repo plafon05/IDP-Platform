@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, ChevronDown, ChevronUp, Edit3, FileSpreadsheet, FileText, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
+import { Activity, Archive, CheckCircle2, ChevronDown, ChevronUp, Edit3, FileSpreadsheet, FileText, MessageSquare, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { listCompetencies, type Competency } from '../shared/api/catalog';
@@ -17,6 +17,8 @@ import {
 import { listSubordinates, listUsers, type User } from '../shared/api/users';
 import { IDPTasksPanel } from './IDPTasksPanel';
 import { MarkdownContent, MarkdownEditor } from '../components/MarkdownEditor';
+import { CommentsThread } from '../components/CommentsThread';
+import { AuditTrail } from '../components/AuditTrail';
 
 const statusLabels: Record<IDPStatus, string> = {
   draft: 'Черновик',
@@ -46,6 +48,7 @@ export function IDPsPage() {
   const [form, setForm] = useState(emptyForm);
   const [editingID, setEditingID] = useState<string | null>(null);
   const [expandedPlan, setExpandedPlan] = useState<IDP | null>(null);
+  const [expandedSection, setExpandedSection] = useState<'tasks' | 'comments' | 'history' | null>(null);
   const [status, setStatus] = useState<'loading' | 'idle' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -67,6 +70,7 @@ export function IDPsPage() {
 	  const requestedPlanID = new URLSearchParams(window.location.search).get('id');
 	  if (requestedPlanID && plansResult.some((plan) => plan.id === requestedPlanID)) {
 	    setExpandedPlan(await getIDP(requestedPlanID));
+	    setExpandedSection('tasks');
 	  }
 
       if (canCreateInScope) {
@@ -86,6 +90,7 @@ export function IDPsPage() {
 
   useEffect(() => {
     setExpandedPlan(null);
+    setExpandedSection(null);
     resetForm();
     void load();
   }, [scope]);
@@ -141,17 +146,19 @@ export function IDPsPage() {
     }
   }
 
-  async function toggleTasks(plan: IDP) {
-    if (expandedPlan?.id === plan.id) {
+  async function toggleSection(plan: IDP, section: 'tasks' | 'comments' | 'history') {
+    if (expandedPlan?.id === plan.id && expandedSection === section) {
       setExpandedPlan(null);
+      setExpandedSection(null);
       return;
     }
     setStatus('loading');
     setError(null);
     try {
       setExpandedPlan(await getIDP(plan.id));
+      setExpandedSection(section);
     } catch {
-      setError('Не удалось открыть задачи ИПР');
+      setError('Не удалось открыть раздел ИПР');
     } finally {
       setStatus('idle');
     }
@@ -299,13 +306,15 @@ export function IDPsPage() {
                   <button className="icon-button" onClick={() => void exportIDP(plan.id, 'xlsx', plan.title)} title="Скачать XLSX" type="button" aria-label="Скачать XLSX"><FileSpreadsheet size={18} /></button>
                   <button className="icon-button" onClick={() => void exportIDP(plan.id, 'pdf', plan.title)} title="Скачать PDF" type="button" aria-label="Скачать PDF"><FileText size={18} /></button>
                   <button
-                    className="secondary-button compact"
-                    onClick={() => void toggleTasks(plan)}
+                    className={`secondary-button compact ${expandedPlan?.id === plan.id && expandedSection === 'tasks' ? 'active' : ''}`}
+                    onClick={() => void toggleSection(plan, 'tasks')}
                     type="button"
                   >
-                    {expandedPlan?.id === plan.id ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                    {expandedPlan?.id === plan.id && expandedSection === 'tasks' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                     Задачи
                   </button>
+                  <button className={`secondary-button compact ${expandedPlan?.id === plan.id && expandedSection === 'comments' ? 'active' : ''}`} onClick={() => void toggleSection(plan, 'comments')} type="button"><MessageSquare size={17} />Комментарии</button>
+                  <button className={`secondary-button compact ${expandedPlan?.id === plan.id && expandedSection === 'history' ? 'active' : ''}`} onClick={() => void toggleSection(plan, 'history')} type="button"><Activity size={17} />История</button>
                   {canManagePlan && (
                     <>
                     {(plan.status === 'draft' || plan.status === 'active') && (
@@ -370,12 +379,14 @@ export function IDPsPage() {
                 {expandedPlan?.id === plan.id && (
                   <>
                     {expandedPlan.goals && <div className="idp-goals"><strong>Цели ИПР</strong><MarkdownContent value={expandedPlan.goals} /></div>}
-                    <IDPTasksPanel
+                    {expandedSection === 'tasks' && <IDPTasksPanel
                       plan={expandedPlan}
                       canManage={canManagePlan}
                       isEmployee={currentUser?.id === expandedPlan.employee_id}
                       onChanged={load}
-                    />
+                    />}
+                    {expandedSection === 'comments' && <CommentsThread entityType="idp" entityID={expandedPlan.id} title="Комментарии к ИПР" />}
+                    {expandedSection === 'history' && <AuditTrail entityType="idp" entityID={expandedPlan.id} />}
                   </>
                 )}
               </article>
