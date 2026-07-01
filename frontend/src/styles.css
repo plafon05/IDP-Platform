@@ -660,12 +660,47 @@ main {
 
 .user-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.8fr) minmax(180px, 1fr) auto auto;
-  gap: 14px;
+  grid-template-areas:
+    "person position actions"
+    "person roles status";
+  grid-template-columns: minmax(0, 1.2fr) minmax(120px, 0.8fr) auto;
+  gap: 8px 14px;
   align-items: center;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 12px;
+}
+
+.user-row .person {
+  grid-area: person;
+  min-width: 0;
+}
+
+.user-row .person > div:last-child {
+  min-width: 0;
+}
+
+.user-row .person span {
+  overflow-wrap: anywhere;
+}
+
+.user-position {
+  grid-area: position;
+  overflow-wrap: anywhere;
+}
+
+.user-row .role-list {
+  grid-area: roles;
+}
+
+.user-row .status-pill {
+  grid-area: status;
+  justify-self: end;
+}
+
+.user-row .row-actions {
+  grid-area: actions;
+  justify-self: end;
 }
 
 .row-actions,
@@ -2122,7 +2157,13 @@ main {
   }
 
   .user-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "person"
+      "position"
+      "roles"
+      "status"
+      "actions";
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .catalog-row,
@@ -2140,9 +2181,9 @@ main {
     grid-template-columns: 1fr;
   }
 
-  .user-row .person,
-  .user-row .role-list {
-    grid-column: 1 / -1;
+  .user-row .status-pill,
+  .user-row .row-actions {
+    justify-self: start;
   }
 
   .form-grid {

@@ -265,7 +265,7 @@ export function UsersPage() {
                     <span>{user.email}</span>
                   </div>
                 </div>
-                <span>{user.position}</span>
+                <span className="user-position">{user.position}</span>
                 <div className="role-list">
                   {user.roles.map((role) => (
                     <span className="role-chip" key={role}>
