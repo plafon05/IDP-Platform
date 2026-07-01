@@ -189,6 +189,56 @@
   background: #1e293b !important;
 }
 
+[data-theme="dark"] .notification-toggle,
+[data-theme="dark"] .checkbox-list label,
+[data-theme="dark"] .checkbox-line,
+[data-theme="dark"] .choice-group label,
+[data-theme="dark"] .competency-option > label,
+[data-theme="dark"] .level-editor-row strong,
+[data-theme="dark"] .idp-goals > strong,
+[data-theme="dark"] .resource-editor > strong,
+[data-theme="dark"] .choice-group legend,
+[data-theme="dark"] .analytics-filters label {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .notification-options,
+[data-theme="dark"] .analytics-toolbar,
+[data-theme="dark"] .task-filters,
+[data-theme="dark"] .template-task-editor,
+[data-theme="dark"] .idp-goals {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .segmented-control,
+[data-theme="dark"] .markdown-editor,
+[data-theme="dark"] .markdown-toolbar,
+[data-theme="dark"] .level-editor-row input,
+[data-theme="dark"] .inline-form input,
+[data-theme="dark"] .import-result {
+  border-color: #475569;
+  color: #e2e8f0;
+  background: #1e293b;
+}
+
+[data-theme="dark"] .segmented-control button.active {
+  color: #f8fafc;
+  background: #475569;
+}
+
+[data-theme="dark"] .markdown-preview,
+[data-theme="dark"] .idp-goals,
+[data-theme="dark"] .template-row p {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .idp-row,
+[data-theme="dark"] .competency-option,
+[data-theme="dark"] .catalog-chip {
+  border-color: #334155;
+  background: #111827;
+}
+
 * {
   box-sizing: border-box;
 }
