@@ -7,8 +7,10 @@ import {
   LayoutDashboard,
   LibraryBig,
   LogOut,
+  Moon,
   Search,
   Settings,
+  Sun,
   Users,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
@@ -47,6 +49,14 @@ export function App() {
   const bootstrap = useSessionStore((state) => state.bootstrap);
   const logout = useSessionStore((state) => state.logout);
   const [section, setSection] = useState<Section>(sectionFromPath);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('idp-theme', next);
+    setTheme(next);
+  }
 
   function navigate(next: Section) {
     window.history.pushState({}, '', next === 'dashboard' ? '/' : `/${next}`);
@@ -182,6 +192,9 @@ export function App() {
             <button className="icon-button" type="button" aria-label="Уведомления">
               <Bell size={20} />
               <span className="notification-dot" />
+            </button>
+            <button className="icon-button" onClick={toggleTheme} type="button" aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button className="icon-button" onClick={() => void logout()} type="button" aria-label="Выйти">
               <LogOut size={20} />

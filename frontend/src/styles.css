@@ -8,6 +8,187 @@
   text-rendering: optimizeLegibility;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #e2e8f0;
+  background: #0b1120;
+}
+
+[data-theme="dark"] body,
+[data-theme="dark"] .login-screen,
+[data-theme="dark"] .loading-screen {
+  background: #0b1120;
+}
+
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .panel,
+[data-theme="dark"] .metric-card,
+[data-theme="dark"] .summary-strip,
+[data-theme="dark"] .profile-identity,
+[data-theme="dark"] .login-form,
+[data-theme="dark"] .user-row,
+[data-theme="dark"] .team-row,
+[data-theme="dark"] .task-row,
+[data-theme="dark"] .department-row {
+  border-color: #334155;
+  background: #111827;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .sidebar {
+  background: rgb(17 24 39 / 94%);
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] .brand strong,
+[data-theme="dark"] .person strong,
+[data-theme="dark"] .task-row strong,
+[data-theme="dark"] .department-name strong,
+[data-theme="dark"] .employee-profile-facts strong,
+[data-theme="dark"] .section-title h2 {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .breadcrumbs,
+[data-theme="dark"] .brand span,
+[data-theme="dark"] .panel p,
+[data-theme="dark"] .person span,
+[data-theme="dark"] .metric-card span,
+[data-theme="dark"] .task-row span,
+[data-theme="dark"] .section-header span,
+[data-theme="dark"] .summary-strip span,
+[data-theme="dark"] .department-name span,
+[data-theme="dark"] .employee-profile-header p,
+[data-theme="dark"] .employee-profile-header > div:nth-child(2) span {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .nav-item,
+[data-theme="dark"] .icon-button,
+[data-theme="dark"] .secondary-button,
+[data-theme="dark"] .search-field,
+[data-theme="dark"] .form-field input,
+[data-theme="dark"] .form-field select,
+[data-theme="dark"] .form-field textarea,
+[data-theme="dark"] .password-field,
+[data-theme="dark"] .password-field input,
+[data-theme="dark"] .password-field button,
+[data-theme="dark"] .analytics-filters input,
+[data-theme="dark"] .analytics-filters select,
+[data-theme="dark"] .template-competency select,
+[data-theme="dark"] .competency-option select {
+  border-color: #475569;
+  color: #e2e8f0;
+  background: #1e293b;
+}
+
+[data-theme="dark"] .nav-item.active,
+[data-theme="dark"] .nav-item:hover {
+  color: #93c5fd;
+  background: #172554;
+}
+
+[data-theme="dark"] .form-field input:read-only,
+[data-theme="dark"] .department-employee,
+[data-theme="dark"] .employee-idp-row:hover {
+  color: #cbd5e1;
+  background: #1e293b;
+}
+
+[data-theme="dark"] .section-header,
+[data-theme="dark"] .welcome-band,
+[data-theme="dark"] .panel-header,
+[data-theme="dark"] .template-row,
+[data-theme="dark"] .task-item,
+[data-theme="dark"] .task-panel,
+[data-theme="dark"] .comments-thread,
+[data-theme="dark"] .audit-trail,
+[data-theme="dark"] .employee-profile-header,
+[data-theme="dark"] .employee-idp-row,
+[data-theme="dark"] .analytics-table th,
+[data-theme="dark"] .analytics-table td {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .role-chip,
+[data-theme="dark"] .task-chips span,
+[data-theme="dark"] .comments-heading span,
+[data-theme="dark"] .status-pill {
+  color: #cbd5e1;
+  background: #334155;
+}
+
+[data-theme="dark"] .status-pill.online,
+[data-theme="dark"] .status-pill.idp-completed,
+[data-theme="dark"] .status-pill.task-completed,
+[data-theme="dark"] .priority-low {
+  color: #86efac;
+  background: #14532d;
+}
+
+[data-theme="dark"] .status-pill.offline,
+[data-theme="dark"] .status-pill.idp-cancelled,
+[data-theme="dark"] .status-pill.task-cancelled,
+[data-theme="dark"] .priority-high {
+  color: #fca5a5;
+  background: #7f1d1d;
+}
+
+[data-theme="dark"] .status-pill.idp-active,
+[data-theme="dark"] .status-pill.task-in_progress,
+[data-theme="dark"] .welcome-band strong {
+  color: #93c5fd;
+  background: #1e3a8a;
+}
+
+[data-theme="dark"] .progress-track,
+[data-theme="dark"] .level-track {
+  background: #334155;
+}
+
+[data-theme="dark"] .empty-state {
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .form-error {
+  border-color: #7f1d1d;
+  color: #fecaca;
+  background: #450a0a;
+}
+
+[data-theme="dark"] .form-success {
+  border-color: #166534;
+  color: #bbf7d0;
+  background: #052e16;
+}
+
+[data-theme="dark"] .markdown-content,
+[data-theme="dark"] .comment-content,
+[data-theme="dark"] .task-feedback,
+[data-theme="dark"] .audit-entry strong,
+[data-theme="dark"] .audit-entry span {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .recharts-cartesian-grid line,
+[data-theme="dark"] .recharts-polar-grid-concentric-polygon,
+[data-theme="dark"] .recharts-polar-grid-angle line {
+  stroke: #334155;
+}
+
+[data-theme="dark"] .recharts-text {
+  fill: #94a3b8;
+}
+
+[data-theme="dark"] .recharts-default-tooltip {
+  border-color: #475569 !important;
+  background: #1e293b !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -2216,7 +2397,7 @@ main {
   .topbar-actions {
     display: grid;
     width: 100%;
-    grid-template-columns: 1fr repeat(3, 40px);
+    grid-template-columns: 1fr repeat(4, 40px);
     justify-content: end;
   }
 
