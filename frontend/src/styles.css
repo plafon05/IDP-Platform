@@ -14,7 +14,7 @@
 
 body {
   margin: 0;
-  min-width: 360px;
+  min-width: 320px;
   min-height: 100vh;
 }
 
@@ -1048,7 +1048,7 @@ main {
 
 .modal-backdrop {
   position: fixed;
-  z-index: 50;
+  z-index: 100;
   inset: 0;
   display: grid;
   place-items: center;
@@ -2083,6 +2083,47 @@ main {
   }
 
   .sidebar {
+    position: fixed;
+    z-index: 50;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: auto;
+    border: 0;
+    border-top: 1px solid #cbd5e1;
+    padding: 7px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .sidebar .brand {
+    display: none;
+  }
+
+  .sidebar .nav-list {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .sidebar .nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar .nav-item {
+    flex: 1 0 72px;
+    min-height: 52px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 5px 6px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .sidebar .nav-item:disabled {
     display: none;
   }
 
@@ -2093,6 +2134,7 @@ main {
 
   main {
     overflow: visible;
+    padding-bottom: 88px;
   }
 
   .topbar,
@@ -2108,7 +2150,6 @@ main {
     width: 100%;
   }
 
-  .metrics-grid,
   .content-grid,
   .users-layout,
   .departments-layout,
@@ -2117,6 +2158,14 @@ main {
   .catalog-named-grid,
   .idps-layout {
     grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .department-form {
+    position: static;
   }
 
   .progress-editor {
@@ -2153,7 +2202,11 @@ main {
 @media (max-width: 560px) {
   .topbar,
   main {
-    padding: 18px;
+    padding: 16px;
+  }
+
+  main {
+    padding-bottom: 86px;
   }
 
   h1 {
@@ -2162,7 +2215,26 @@ main {
 
   .topbar-actions {
     display: grid;
-    grid-template-columns: 1fr 40px 40px;
+    width: 100%;
+    grid-template-columns: 1fr repeat(3, 40px);
+    justify-content: end;
+  }
+
+  .topbar-actions .search-field {
+    grid-column: 1 / -1;
+  }
+
+  .topbar-actions .search-field + .icon-button {
+    grid-column: 2;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 92px;
+    padding: 14px;
   }
 
   .team-row {
@@ -2203,6 +2275,79 @@ main {
   .user-row .status-pill,
   .user-row .row-actions {
     justify-self: start;
+  }
+
+  .row-actions {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .segmented-control {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .segmented-control button {
+    flex: 1 0 auto;
+  }
+
+  .department-row {
+    grid-template-columns: 28px 20px minmax(0, 1fr);
+  }
+
+  .department-row > .row-actions {
+    grid-column: 1 / -1;
+    padding-left: 58px;
+  }
+
+  .department-children {
+    margin-left: 10px;
+    padding-left: 10px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .panel-header {
+    gap: 10px;
+  }
+
+  .summary-strip {
+    width: 100%;
+    grid-template-columns: repeat(2, auto minmax(0, 1fr));
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .apply-template-dialog {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .template-heading,
+  .template-competency {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employee-profile-avatar {
+    width: 72px;
+    height: 72px;
+  }
+
+  .employee-profile-chart {
+    height: 250px;
+  }
+
+  .analytics-chart {
+    height: 240px;
+  }
+
+  .empty-state {
+    padding: 20px 12px;
   }
 
   .form-grid {
