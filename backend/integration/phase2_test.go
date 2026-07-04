@@ -207,10 +207,17 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		if err := f.db.QueryRow(context.Background(), `INSERT INTO tags(name) VALUES('Backend') RETURNING id::text`).Scan(&tagID); err != nil {
 			t.Fatal(err)
 		}
-		f.request(t, managerToken, http.MethodPost, "/api/v1/idps/"+f.idpID+"/tasks", map[string]any{
+		response := f.request(t, managerToken, http.MethodPost, "/api/v1/idps/"+f.idpID+"/tasks", map[string]any{
 			"title": "Task with references", "category_id": categoryID, "priority": "medium",
 			"status": "not_started", "progress": 0, "competency_ids": []any{}, "tag_ids": []string{tagID}, "resources": []any{},
 		}, http.StatusCreated)
+		var task struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &task); err != nil {
+			t.Fatal(err)
+		}
+		f.request(t, managerToken, http.MethodDelete, "/api/v1/tasks/"+task.ID, nil, http.StatusNoContent)
 	})
 
 	t.Run("only employee reports progress", func(t *testing.T) {
@@ -255,6 +262,8 @@ func TestPhase2RoleMatrix(t *testing.T) {
 
 	t.Run("audit and optional completion comment", func(t *testing.T) {
 		f.request(t, employeeToken, http.MethodGet, "/api/v1/tasks/"+f.taskID+"/audit", nil, http.StatusOK)
+		f.request(t, managerToken, http.MethodPatch, "/api/v1/idps/"+f.idpID+"/status", map[string]string{"status": "completed"}, http.StatusConflict)
+		f.request(t, employeeToken, http.MethodPatch, "/api/v1/tasks/"+f.taskID+"/progress", map[string]any{"status": "completed", "progress": 100}, http.StatusOK)
 		f.request(t, managerToken, http.MethodPatch, "/api/v1/idps/"+f.idpID+"/status", map[string]string{"status": "completed"}, http.StatusOK)
 	})
 }

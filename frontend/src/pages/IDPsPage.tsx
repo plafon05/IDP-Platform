@@ -191,7 +191,7 @@ export function IDPsPage() {
       await load();
       setNotice(`Статус изменён: ${statusLabels[next]}`);
     } catch {
-      setError('Не удалось изменить статус ИПР');
+      setError(next === 'completed' ? 'Нельзя завершить ИПР, пока есть незавершённые задачи' : 'Не удалось изменить статус ИПР');
       setStatus('idle');
     }
   }

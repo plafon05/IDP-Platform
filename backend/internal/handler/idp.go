@@ -258,6 +258,8 @@ func writeIDPError(w http.ResponseWriter, err error) {
 		httpjson.WriteError(w, http.StatusForbidden, "FORBIDDEN", "Insufficient permissions")
 	case errors.Is(err, idp.ErrInvalidTransition):
 		httpjson.WriteError(w, http.StatusConflict, "INVALID_STATUS_TRANSITION", "Invalid IDP status transition")
+	case errors.Is(err, idp.ErrIncompleteTasks):
+		httpjson.WriteError(w, http.StatusConflict, "IDP_HAS_INCOMPLETE_TASKS", "Complete all active tasks before completing the IDP")
 	case errors.Is(err, idp.ErrEmployeeNoManager):
 		httpjson.WriteError(w, http.StatusConflict, "EMPLOYEE_HAS_NO_MANAGER", "Employee must have a manager")
 	case errors.Is(err, idp.ErrEmployeeInactive):

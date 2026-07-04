@@ -41,6 +41,12 @@ function sectionFromPath(): Section {
   return value === 'users' || value === 'departments' || value === 'catalog' || value === 'plans' || value === 'templates' || value === 'analytics' || value === 'profile' || value === 'settings' ? value : 'dashboard';
 }
 
+function canOpenSection(section: Section, roles: string[]) {
+  if (section === 'users' || section === 'departments' || section === 'catalog') return roles.includes('hr_admin');
+  if (section === 'templates' || section === 'analytics') return roles.includes('manager') || roles.includes('hr_admin');
+  return true;
+}
+
 export function App() {
   const status = useSessionStore((state) => state.status);
   const user = useSessionStore((state) => state.user);
@@ -99,6 +105,14 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const sectionAllowed = canOpenSection(section, user?.roles ?? []);
+  useEffect(() => {
+    if (status === 'authenticated' && !sectionAllowed) {
+      window.history.replaceState({}, '', '/');
+      setSection('dashboard');
+    }
+  }, [sectionAllowed, status]);
+
   if (window.location.pathname === '/reset-password') {
     return <ResetPasswordPage />;
   }
@@ -118,6 +132,7 @@ export function App() {
     return <LoginPage />;
   }
 
+  const activeSection = sectionAllowed ? section : 'dashboard';
   const initials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'ID';
   const pageTitle = {
     dashboard: 'Индивидуальные планы развития',
@@ -130,7 +145,7 @@ export function App() {
     profile: 'Профиль пользователя',
     settings: 'Настройки',
     'employee-profile': 'Профиль сотрудника',
-  }[section];
+  }[activeSection];
   const breadcrumb = {
     dashboard: 'Главная / Дашборд',
     users: 'Главная / Пользователи',
@@ -142,7 +157,7 @@ export function App() {
     profile: 'Главная / Профиль',
     settings: 'Главная / Настройки',
     'employee-profile': 'Главная / Сотрудники / Профиль',
-  }[section];
+  }[activeSection];
 
   return (
     <div className="shell">
@@ -158,7 +173,7 @@ export function App() {
         <nav className="nav-list">
           {navItems.map((item) => (
             <button
-              className={`nav-item ${section === item.id ? 'active' : ''}`}
+              className={`nav-item ${activeSection === item.id ? 'active' : ''}`}
               key={item.label}
               onClick={() => {
                 if (
@@ -212,16 +227,16 @@ export function App() {
         </header>
 
         <main>
-          {section === 'profile' && <ProfilePage />}
-          {section === 'settings' && <ProfilePage />}
-          {section === 'users' && <UsersPage />}
-          {section === 'departments' && <DepartmentsPage />}
-          {section === 'catalog' && <CatalogPage />}
-          {section === 'plans' && <IDPsPage />}
-          {section === 'templates' && <TemplatesPage />}
-          {section === 'employee-profile' && <Suspense fallback={<div className="empty-state">Загрузка профиля...</div>}><EmployeeProfilePage employeeID={window.location.pathname.split('/')[2] ?? ''} /></Suspense>}
-          {section === 'analytics' && <Suspense fallback={<div className="empty-state">Загрузка аналитики...</div>}><AnalyticsPage /></Suspense>}
-          {section === 'dashboard' && <Suspense fallback={<div className="empty-state">Загрузка дашборда...</div>}><DashboardPage /></Suspense>}
+          {activeSection === 'profile' && <ProfilePage />}
+          {activeSection === 'settings' && <ProfilePage />}
+          {activeSection === 'users' && <UsersPage />}
+          {activeSection === 'departments' && <DepartmentsPage />}
+          {activeSection === 'catalog' && <CatalogPage />}
+          {activeSection === 'plans' && <IDPsPage />}
+          {activeSection === 'templates' && <TemplatesPage />}
+          {activeSection === 'employee-profile' && <Suspense fallback={<div className="empty-state">Загрузка профиля...</div>}><EmployeeProfilePage employeeID={window.location.pathname.split('/')[2] ?? ''} /></Suspense>}
+          {activeSection === 'analytics' && <Suspense fallback={<div className="empty-state">Загрузка аналитики...</div>}><AnalyticsPage /></Suspense>}
+          {activeSection === 'dashboard' && <Suspense fallback={<div className="empty-state">Загрузка дашборда...</div>}><DashboardPage /></Suspense>}
         </main>
       </div>
     </div>

@@ -18,6 +18,7 @@ var (
 	ErrForbidden         = errors.New("idp access forbidden")
 	ErrInvalidInput      = errors.New("invalid idp input")
 	ErrInvalidTransition = errors.New("invalid idp status transition")
+	ErrIncompleteTasks   = errors.New("idp has incomplete tasks")
 	ErrEmployeeNoManager = errors.New("employee has no manager")
 	ErrEmployeeInactive  = errors.New("employee is inactive")
 )
@@ -314,6 +315,15 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 	}
 	if input.Status == "cancelled" && empty(input.Reason) {
 		return nil, ErrInvalidInput
+	}
+	if input.Status == "completed" {
+		var incomplete bool
+		if err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM tasks WHERE idp_id=$1 AND deleted_at IS NULL AND status IN ('not_started','in_progress'))`, id).Scan(&incomplete); err != nil {
+			return nil, err
+		}
+		if incomplete {
+			return nil, ErrIncompleteTasks
+		}
 	}
 
 	tx, err := s.db.Begin(ctx)

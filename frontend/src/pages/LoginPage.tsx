@@ -3,8 +3,8 @@ import { FormEvent, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('admin@idp.local');
-  const [password, setPassword] = useState('Admin12345');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const login = useSessionStore((state) => state.login);
