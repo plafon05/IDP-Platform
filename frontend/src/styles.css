@@ -813,6 +813,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
   gap: 16px;
+  align-items: start;
 }
 
 .users-layout {
