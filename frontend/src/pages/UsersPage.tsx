@@ -14,6 +14,7 @@ import {
   updateUser,
 } from '../shared/api/users';
 import { listDepartments, type Department } from '../shared/api/departments';
+import { useMatchedRegistryHeight } from '../shared/ui/useMatchedRegistryHeight';
 
 const roleLabels: Record<UserRole, string> = {
   employee: 'Сотрудник',
@@ -37,6 +38,7 @@ const emptyForm = {
 type UserForm = typeof emptyForm;
 
 export function UsersPage() {
+  const layoutRef = useMatchedRegistryHeight();
   const [users, setUsers] = useState<User[]>([]);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<UserForm>(emptyForm);
@@ -226,7 +228,7 @@ export function UsersPage() {
         </div>
       </section>
 
-      <section className="users-layout">
+      <section className="users-layout" ref={layoutRef}>
         <div className="panel registry-panel">
           <div className="panel-header">
             <div>
@@ -323,7 +325,7 @@ export function UsersPage() {
           </div>
         </div>
 
-        <div className="side-stack">
+        <div className="side-stack registry-height-source">
           {editingUserID && (
             <form className="panel user-form" onSubmit={handleUpdate}>
               <div className="panel-header">

@@ -19,6 +19,7 @@ import { IDPTasksPanel } from './IDPTasksPanel';
 import { MarkdownContent, MarkdownEditor } from '../components/MarkdownEditor';
 import { CommentsThread } from '../components/CommentsThread';
 import { AuditTrail } from '../components/AuditTrail';
+import { useMatchedRegistryHeight } from '../shared/ui/useMatchedRegistryHeight';
 
 const statusLabels: Record<IDPStatus, string> = {
   draft: 'Черновик',
@@ -37,6 +38,7 @@ const emptyForm = {
 };
 
 export function IDPsPage() {
+  const layoutRef = useMatchedRegistryHeight();
   const currentUser = useSessionStore((state) => state.user);
   const isHR = currentUser?.roles.includes('hr_admin') ?? false;
   const isManager = currentUser?.roles.includes('manager') ?? false;
@@ -260,7 +262,7 @@ export function IDPsPage() {
       {error && <div className="form-error">{error}</div>}
       {notice && <div className="form-success">{notice}</div>}
 
-      <section className={`idps-layout ${canCreateInScope ? '' : 'single'}`}>
+      <section className={`idps-layout ${canCreateInScope ? '' : 'single'}`} ref={layoutRef}>
         <div className="panel registry-panel">
           <div className="panel-header">
             <div>
@@ -377,7 +379,7 @@ export function IDPsPage() {
                   )}
                 </div>
                 {expandedPlan?.id === plan.id && (
-                  <>
+                  <div className={`idp-expanded-section idp-expanded-${expandedSection ?? 'details'}`}>
                     {expandedPlan.goals && <div className="idp-goals"><strong>Цели ИПР</strong><MarkdownContent value={expandedPlan.goals} /></div>}
                     {expandedSection === 'tasks' && <IDPTasksPanel
                       plan={expandedPlan}
@@ -387,7 +389,7 @@ export function IDPsPage() {
                     />}
                     {expandedSection === 'comments' && <CommentsThread entityType="idp" entityID={expandedPlan.id} title="Комментарии к ИПР" />}
                     {expandedSection === 'history' && <AuditTrail entityType="idp" entityID={expandedPlan.id} />}
-                  </>
+                  </div>
                 )}
               </article>
             })}
@@ -395,7 +397,7 @@ export function IDPsPage() {
         </div>
 
         {canCreateInScope && (
-          <form className="panel idp-form" onSubmit={handleSubmit}>
+          <form className="panel idp-form registry-height-source" onSubmit={handleSubmit}>
             <div className="panel-header">
               <div>
                 <h2>{editingID ? 'Редактирование ИПР' : 'Новый ИПР'}</h2>

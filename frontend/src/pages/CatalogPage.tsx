@@ -19,6 +19,7 @@ import {
   type CompetencyLevel,
   type NamedCatalogItem,
 } from '../shared/api/catalog';
+import { useMatchedRegistryHeight } from '../shared/ui/useMatchedRegistryHeight';
 
 const categoryLabels: Record<CompetencyCategory, string> = {
   hard: 'Hard skills',
@@ -45,6 +46,7 @@ type CompetencyForm = typeof emptyCompetencyForm;
 type NamedKind = 'task-category' | 'tag';
 
 export function CatalogPage() {
+  const layoutRef = useMatchedRegistryHeight();
   const [competencies, setCompetencies] = useState<Competency[]>([]);
   const [taskCategories, setTaskCategories] = useState<NamedCatalogItem[]>([]);
   const [tags, setTags] = useState<NamedCatalogItem[]>([]);
@@ -246,7 +248,7 @@ export function CatalogPage() {
       {error && <div className="form-error">{error}</div>}
       {notice && <div className="form-success">{notice}</div>}
 
-      <section className="catalog-layout">
+      <section className="catalog-layout" ref={layoutRef}>
         <div className="panel registry-panel">
           <div className="panel-header">
             <div>
@@ -303,7 +305,7 @@ export function CatalogPage() {
           </div>
         </div>
 
-        <form className="panel catalog-form" onSubmit={handleCompetencySubmit}>
+        <form className="panel catalog-form registry-height-source" onSubmit={handleCompetencySubmit}>
           <div className="panel-header">
             <div>
               <h2>{editingCompetencyID ? 'Редактирование' : 'Новая компетенция'}</h2>

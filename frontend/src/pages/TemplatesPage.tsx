@@ -5,11 +5,13 @@ import { listCompetencies, listTaskCategories, type Competency, type NamedCatalo
 import { listSubordinates, listUsers, type User } from '../shared/api/users';
 import { applyTemplate, archiveTemplate, createTemplate, listTemplates, updateTemplate, type IDPTemplate, type TemplatePayload, type TemplateTask } from '../shared/api/templates';
 import { MarkdownEditor } from '../components/MarkdownEditor';
+import { useMatchedRegistryHeight } from '../shared/ui/useMatchedRegistryHeight';
 
 const emptyTask: TemplateTask = { title: '', description: '', priority: 'medium' };
 const emptyForm: TemplatePayload = { title: '', description: '', goals: '', target_role: '', is_active: true, tasks: [], competencies: [] };
 
 export function TemplatesPage() {
+  const layoutRef = useMatchedRegistryHeight();
   const user = useSessionStore((state) => state.user);
   const isHR = user?.roles.includes('hr_admin') ?? false;
   const [templates, setTemplates] = useState<IDPTemplate[]>([]);
@@ -58,9 +60,9 @@ export function TemplatesPage() {
   return <div className="templates-page">
     <section className="section-header"><div><span>Повторное использование</span><h2>Шаблоны ИПР</h2></div><div className="summary-strip"><strong>{templates.filter((item) => item.is_active).length}</strong><span>Активны</span></div></section>
     {error && <div className="form-error">{error}</div>}{notice && <div className="form-success">{notice}</div>}
-    <section className="templates-layout">
+    <section className="templates-layout" ref={layoutRef}>
       <div className="panel registry-panel"><div className="panel-header"><div><h2>Доступные шаблоны</h2><p>Наборы задач и компетенций для новых ИПР</p></div></div><div className="template-list" aria-busy={busy}>{templates.length === 0 && !busy && <div className="empty-state">Шаблонов пока нет</div>}{templates.map((item) => { const own = isHR || item.creator_id === user?.id; return <article className="template-row" key={item.id}><div className="template-heading"><div><strong>{item.title}</strong><span>{item.target_role || 'Для любой роли'}</span></div><span className={`status-pill ${item.is_active ? 'idp-active' : 'idp-cancelled'}`}>{item.is_active ? 'Активен' : 'Архив'}</span></div>{item.description && <p>{item.description}</p>}<div className="template-summary"><span>{item.tasks.length} задач</span><span>{item.competencies.length} компетенций</span></div><div className="row-actions">{item.is_active && <button className="primary-button compact" onClick={() => { setApplyTo(item); setApplication((current) => ({ ...current, title: item.title })); }} type="button"><CopyPlus size={16} />Применить</button>}{own && <button className="icon-button" onClick={() => edit(item)} aria-label="Редактировать" title="Редактировать" type="button"><Edit3 size={17} /></button>}{own && item.is_active && <button className="icon-button danger" onClick={() => void archiveTemplate(item.id).then(load)} aria-label="Архивировать" title="Архивировать" type="button"><Archive size={17} /></button>}</div></article>; })}</div></div>
-      <form className="panel template-form" onSubmit={submit}><div className="panel-header"><div><h2>{editingID ? 'Редактирование шаблона' : 'Новый шаблон'}</h2><p>Сроки задач задаются в днях от начала ИПР</p></div><Plus size={20} /></div>
+      <form className="panel template-form registry-height-source" onSubmit={submit}><div className="panel-header"><div><h2>{editingID ? 'Редактирование шаблона' : 'Новый шаблон'}</h2><p>Сроки задач задаются в днях от начала ИПР</p></div><Plus size={20} /></div>
         <label className="form-field"><span>Название</span><input required maxLength={300} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
         <label className="form-field"><span>Целевая роль</span><input maxLength={200} value={form.target_role ?? ''} onChange={(event) => setForm({ ...form, target_role: event.target.value })} /></label>
         <label className="form-field"><span>Описание</span><textarea maxLength={2000} value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>

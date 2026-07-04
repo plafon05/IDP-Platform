@@ -833,7 +833,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
   gap: 16px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .departments-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -862,7 +862,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
   gap: 16px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .catalog-named-grid {
@@ -875,7 +875,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
   gap: 16px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .idps-layout.single {
@@ -889,7 +889,7 @@ main {
 .registry-panel {
   display: flex;
   width: 100%;
-  height: 100%;
+  min-height: 0;
   flex-direction: column;
   overflow: hidden;
 }
@@ -1246,7 +1246,7 @@ main {
 .templates-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
-  align-items: stretch;
+  align-items: start;
   gap: 18px;
 }
 
@@ -1761,6 +1761,31 @@ main {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 14px;
+}
+
+.idp-expanded-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 2px;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.idp-expanded-section .idp-goals,
+.idp-expanded-section .task-panel,
+.idp-expanded-section .comments-thread,
+.idp-expanded-section .audit-trail {
+  border-top: 0;
+  padding-top: 0;
+}
+
+[data-theme="dark"] .idp-expanded-section {
+  border-color: #475569;
+  border-left-color: #3b82f6;
+  background: #0f172a;
 }
 
 .idp-main,
@@ -2403,7 +2428,6 @@ main {
 .table-scroll {
   max-height: min(680px, 72vh);
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   padding-right: 4px;
 }
@@ -2418,8 +2442,8 @@ main {
 .audit-list,
 .template-task-list {
   max-height: min(520px, 62vh);
+  align-content: start;
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   padding-right: 4px;
 }
@@ -2442,6 +2466,13 @@ main {
 .template-task-list {
   scrollbar-color: #94a3b8 transparent;
   scrollbar-width: thin;
+}
+
+.registry-panel > .users-table,
+.registry-panel > .catalog-list,
+.registry-panel > .idp-list,
+.registry-panel > .template-list {
+  align-content: start;
 }
 
 [data-theme="dark"] .users-table,
