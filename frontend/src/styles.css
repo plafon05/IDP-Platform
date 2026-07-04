@@ -234,7 +234,8 @@
 
 [data-theme="dark"] .idp-row,
 [data-theme="dark"] .competency-option,
-[data-theme="dark"] .catalog-chip {
+[data-theme="dark"] .catalog-chip,
+[data-theme="dark"] .template-task-row {
   border-color: #334155;
   background: #111827;
 }
@@ -1223,6 +1224,47 @@ main {
 .template-tasks {
   display: grid;
   gap: 14px;
+}
+
+.template-task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.template-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+
+.template-task-row > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.template-task-row span,
+.template-task-row small,
+.template-tasks .task-panel-heading span {
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.template-task-dialog {
+  display: grid;
+  width: min(620px, 100%);
+  max-height: calc(100dvh - 40px);
+  gap: 14px;
+  overflow: auto;
+}
+
+.empty-state.compact {
+  padding: 18px 12px;
 }
 
 .template-row {
@@ -2576,6 +2618,10 @@ main {
   .template-competency {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .template-task-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .employee-profile-avatar {
