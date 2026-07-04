@@ -816,6 +816,19 @@ main {
   align-items: start;
 }
 
+.manager-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.manager-column {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
 .users-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
@@ -2447,6 +2460,7 @@ main {
   }
 
   .content-grid,
+  .manager-grid,
   .users-layout,
   .departments-layout,
   .profile-layout,
@@ -2455,6 +2469,15 @@ main {
   .idps-layout {
     grid-template-columns: 1fr;
   }
+
+  .manager-column {
+    display: contents;
+  }
+
+  .manager-team { order: 1; }
+  .manager-statuses { order: 2; }
+  .manager-attention { order: 3; }
+  .manager-endings { order: 4; }
 
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
