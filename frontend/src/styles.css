@@ -2377,6 +2377,75 @@ main {
 .priority-low { color: #166534; background: #dcfce7; }
 .priority-high { color: #991b1b; background: #fee2e2; }
 
+.users-table,
+.idp-list,
+.template-list,
+.department-tree,
+.catalog-list,
+.chip-list,
+.table-scroll {
+  max-height: min(680px, 72vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+}
+
+.team-list,
+.attention-list,
+.dashboard-plan-list,
+.competency-dashboard,
+.activity-list,
+.task-list,
+.comment-list,
+.audit-list,
+.template-task-list {
+  max-height: min(520px, 62vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+}
+
+.users-table,
+.idp-list,
+.template-list,
+.department-tree,
+.catalog-list,
+.chip-list,
+.table-scroll,
+.team-list,
+.attention-list,
+.dashboard-plan-list,
+.competency-dashboard,
+.activity-list,
+.task-list,
+.comment-list,
+.audit-list,
+.template-task-list {
+  scrollbar-color: #94a3b8 transparent;
+  scrollbar-width: thin;
+}
+
+[data-theme="dark"] .users-table,
+[data-theme="dark"] .idp-list,
+[data-theme="dark"] .template-list,
+[data-theme="dark"] .department-tree,
+[data-theme="dark"] .catalog-list,
+[data-theme="dark"] .chip-list,
+[data-theme="dark"] .table-scroll,
+[data-theme="dark"] .team-list,
+[data-theme="dark"] .attention-list,
+[data-theme="dark"] .dashboard-plan-list,
+[data-theme="dark"] .competency-dashboard,
+[data-theme="dark"] .activity-list,
+[data-theme="dark"] .task-list,
+[data-theme="dark"] .comment-list,
+[data-theme="dark"] .audit-list,
+[data-theme="dark"] .template-task-list {
+  scrollbar-color: #64748b transparent;
+}
+
 .person-avatar.image img {
   width: 100%;
   height: 100%;
