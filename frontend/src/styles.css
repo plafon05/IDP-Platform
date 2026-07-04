@@ -833,7 +833,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .departments-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -862,7 +862,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .catalog-named-grid {
@@ -875,7 +875,7 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .idps-layout.single {
@@ -889,8 +889,7 @@ main {
 .registry-panel {
   display: flex;
   width: 100%;
-  max-height: min(820px, calc(100dvh - 170px));
-  align-self: start;
+  height: 100%;
   flex-direction: column;
   overflow: hidden;
 }
@@ -900,6 +899,7 @@ main {
 .registry-panel > .idp-list,
 .registry-panel > .template-list {
   min-height: 0;
+  max-height: none;
   flex: 1;
 }
 
@@ -1246,7 +1246,7 @@ main {
 .templates-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
-  align-items: start;
+  align-items: stretch;
   gap: 18px;
 }
 
