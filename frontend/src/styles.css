@@ -836,8 +836,8 @@ main {
   align-items: start;
 }
 
-.departments-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .6fr); gap: 16px; align-items: start; }
-.department-form { display: grid; gap: 14px; position: sticky; top: 0; }
+.departments-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.department-form { display: grid; width: min(520px, 100%); max-height: calc(100dvh - 40px); gap: 14px; overflow: auto; }
 .department-tree, .department-children { display: grid; gap: 8px; }
 .department-branch { min-width: 0; }
 .department-row { display: grid; grid-template-columns: 28px 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 62px; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
@@ -884,6 +884,23 @@ main {
 
 .panel {
   padding: 18px;
+}
+
+.registry-panel {
+  display: flex;
+  width: 100%;
+  max-height: min(820px, calc(100dvh - 170px));
+  align-self: start;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.registry-panel > .users-table,
+.registry-panel > .catalog-list,
+.registry-panel > .idp-list,
+.registry-panel > .template-list {
+  min-height: 0;
+  flex: 1;
 }
 
 .panel-header {

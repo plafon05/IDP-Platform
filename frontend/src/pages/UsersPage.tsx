@@ -227,7 +227,7 @@ export function UsersPage() {
       </section>
 
       <section className="users-layout">
-        <div className="panel">
+        <div className="panel registry-panel">
           <div className="panel-header">
             <div>
               <h2>Список</h2>

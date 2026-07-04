@@ -247,7 +247,7 @@ export function CatalogPage() {
       {notice && <div className="form-success">{notice}</div>}
 
       <section className="catalog-layout">
-        <div className="panel">
+        <div className="panel registry-panel">
           <div className="panel-header">
             <div>
               <h2>Компетенции</h2>

@@ -261,7 +261,7 @@ export function IDPsPage() {
       {notice && <div className="form-success">{notice}</div>}
 
       <section className={`idps-layout ${canCreateInScope ? '' : 'single'}`}>
-        <div className="panel">
+        <div className="panel registry-panel">
           <div className="panel-header">
             <div>
               <h2>{scope === 'own' ? 'Мои планы развития' : scope === 'team' ? 'Планы команды' : 'Все планы развития'}</h2>
