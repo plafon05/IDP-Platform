@@ -543,7 +543,7 @@ func replaceRelations(ctx context.Context, tx pgx.Tx, idpID, taskID string, inpu
 	for _, tagID := range unique(input.TagIDs) {
 		tag, err := tx.Exec(ctx, `
 			INSERT INTO task_tags (task_id, tag_id)
-			SELECT $1, id FROM tags WHERE id=$2 AND is_active=true
+			SELECT $1, id FROM tags WHERE id=$2
 		`, taskID, tagID)
 		if err != nil {
 			return err
@@ -566,7 +566,7 @@ func validateCategory(ctx context.Context, tx pgx.Tx, categoryID *string) error 
 		return nil
 	}
 	var exists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM task_categories WHERE id=$1 AND is_active=true)`, strings.TrimSpace(*categoryID)).Scan(&exists); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM task_categories WHERE id=$1)`, strings.TrimSpace(*categoryID)).Scan(&exists); err != nil {
 		return err
 	}
 	if !exists {

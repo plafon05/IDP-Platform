@@ -199,6 +199,20 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		f.request(t, managerToken, http.MethodPut, "/api/v1/idps/"+f.idpID, payload, http.StatusOK)
 	})
 
+	t.Run("task uses category and tag", func(t *testing.T) {
+		var categoryID, tagID string
+		if err := f.db.QueryRow(context.Background(), `INSERT INTO task_categories(name) VALUES('Course') RETURNING id::text`).Scan(&categoryID); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.db.QueryRow(context.Background(), `INSERT INTO tags(name) VALUES('Backend') RETURNING id::text`).Scan(&tagID); err != nil {
+			t.Fatal(err)
+		}
+		f.request(t, managerToken, http.MethodPost, "/api/v1/idps/"+f.idpID+"/tasks", map[string]any{
+			"title": "Task with references", "category_id": categoryID, "priority": "medium",
+			"status": "not_started", "progress": 0, "competency_ids": []any{}, "tag_ids": []string{tagID}, "resources": []any{},
+		}, http.StatusCreated)
+	})
+
 	t.Run("only employee reports progress", func(t *testing.T) {
 		payload := map[string]any{"status": "in_progress", "progress": 50}
 		f.request(t, managerToken, http.MethodPatch, "/api/v1/tasks/"+f.taskID+"/progress", payload, http.StatusForbidden)
