@@ -26,9 +26,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}))
 	slog.SetDefault(logger)
 
-	if err := migrations.Up(context.Background(), cfg); err != nil {
-		slog.Error("database migrations failed", "error", err)
-		os.Exit(1)
+	if cfg.AppEnv != "production" {
+		if err := migrations.Up(context.Background(), cfg); err != nil {
+			slog.Error("database migrations failed", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	dbPool, err := database.Connect(context.Background(), cfg)

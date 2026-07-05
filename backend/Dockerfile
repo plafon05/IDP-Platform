@@ -5,12 +5,14 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/server ./cmd/server
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/email-worker ./cmd/email-worker
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/migrate ./cmd/migrate
 
 FROM alpine:3.21
 RUN adduser -D -H -u 10001 appuser
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=build /out/email-worker /app/email-worker
+COPY --from=build /out/migrate /app/migrate
 COPY migrations /app/migrations
 USER appuser
 EXPOSE 8080

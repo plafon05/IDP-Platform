@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .env.local
+.env.production
 docker-compose.override.yml
 
 backend/server
@@ -15,3 +16,6 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 
 *.log
+
+nginx/tls/*.pem
+backups/

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"idp-platform/backend/internal/config"
 
@@ -16,11 +15,6 @@ import (
 const migrationsDir = "migrations"
 
 func Up(ctx context.Context, cfg config.Config) error {
-	if cfg.AppEnv == "production" {
-		slog.Info("database migrations skipped in production")
-		return nil
-	}
-
 	dbConfig, err := pgx.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("parse migration database config: %w", err)
