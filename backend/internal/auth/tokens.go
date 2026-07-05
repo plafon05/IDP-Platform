@@ -23,6 +23,13 @@ type AccessClaims struct {
 }
 
 func GenerateAccessToken(cfg config.Config, userID string, roles []string) (string, time.Time, error) {
+	keys := cfg.AccessTokenKeys()
+	if len(keys) == 0 {
+		return "", time.Time{}, errors.New("access token signing key is not configured")
+	}
+	if keys[0].KeyID == "" || keys[0].Secret == "" {
+		return "", time.Time{}, errors.New("access token signing key is invalid")
+	}
 	expiresAt := time.Now().Add(cfg.JWTAccessTTL)
 	claims := AccessClaims{
 		UserID: userID,
@@ -35,7 +42,8 @@ func GenerateAccessToken(cfg config.Config, userID string, roles []string) (stri
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(cfg.JWTSecret))
+	token.Header["kid"] = keys[0].KeyID
+	signed, err := token.SignedString([]byte(keys[0].Secret))
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -44,11 +52,21 @@ func GenerateAccessToken(cfg config.Config, userID string, roles []string) (stri
 }
 
 func ParseAccessToken(cfg config.Config, rawToken string) (*AccessClaims, error) {
+	keys := cfg.AccessTokenKeys()
 	token, err := jwt.ParseWithClaims(rawToken, &AccessClaims{}, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
 		}
-		return []byte(cfg.JWTSecret), nil
+		keyID, ok := token.Header["kid"].(string)
+		if !ok || keyID == "" {
+			return nil, errors.New("access token kid is missing")
+		}
+		for _, key := range keys {
+			if key.KeyID == keyID {
+				return []byte(key.Secret), nil
+			}
+		}
+		return nil, fmt.Errorf("unknown access token kid: %s", keyID)
 	})
 	if err != nil {
 		return nil, err

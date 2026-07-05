@@ -8,13 +8,15 @@ import (
 )
 
 type Config struct {
-	AppEnv             string
-	Port               string
-	DatabaseURL        string
-	RedisURL           string
-	FrontendURL        string
-	CORSOrigins        []string
+	AppEnv      string
+	Port        string
+	DatabaseURL string
+	RedisURL    string
+	FrontendURL string
+	CORSOrigins []string
+	// JWTSecret is kept for legacy configuration and non-JWT HMAC signatures.
 	JWTSecret          string
+	JWTSecrets         []JWTSigningKey
 	JWTAccessTTL       time.Duration
 	JWTRefreshTTL      time.Duration
 	RefreshCookieName  string
@@ -42,6 +44,7 @@ type Config struct {
 }
 
 func Load() Config {
+	jwtSecrets := loadJWTSecrets()
 	return Config{
 		AppEnv:             env("APP_ENV", "development"),
 		Port:               env("APP_PORT", "8080"),
@@ -49,7 +52,8 @@ func Load() Config {
 		RedisURL:           env("REDIS_URL", "redis://localhost:6379"),
 		FrontendURL:        env("FRONTEND_URL", "http://localhost:5173"),
 		CORSOrigins:        splitCSV(env("CORS_ORIGINS", "http://localhost:5173")),
-		JWTSecret:          env("JWT_SECRET", "local-development-secret-change-me"),
+		JWTSecret:          jwtSecrets[0].Secret,
+		JWTSecrets:         jwtSecrets,
 		JWTAccessTTL:       durationEnv("JWT_ACCESS_TTL", 15*time.Minute),
 		JWTRefreshTTL:      durationEnv("JWT_REFRESH_TTL", 30*24*time.Hour),
 		RefreshCookieName:  env("REFRESH_COOKIE_NAME", "idp_refresh_token"),
@@ -75,6 +79,36 @@ func Load() Config {
 		EmailQueueKey:      env("EMAIL_QUEUE_KEY", "idp:email:queue"),
 		ReminderTimezone:   env("EMAIL_REMINDER_TIMEZONE", "Europe/Moscow"),
 	}
+}
+
+type JWTSigningKey struct {
+	KeyID  string
+	Secret string
+}
+
+func (c Config) AccessTokenKeys() []JWTSigningKey {
+	if len(c.JWTSecrets) > 0 {
+		return c.JWTSecrets
+	}
+	if strings.TrimSpace(c.JWTSecret) != "" {
+		return []JWTSigningKey{{KeyID: "default", Secret: c.JWTSecret}}
+	}
+	return nil
+}
+
+func loadJWTSecrets() []JWTSigningKey {
+	var result []JWTSigningKey
+	for _, item := range strings.Split(os.Getenv("JWT_SECRETS"), ",") {
+		keyID, secret, ok := strings.Cut(strings.TrimSpace(item), ":")
+		keyID, secret = strings.TrimSpace(keyID), strings.TrimSpace(secret)
+		if ok && keyID != "" && secret != "" {
+			result = append(result, JWTSigningKey{KeyID: keyID, Secret: secret})
+		}
+	}
+	if len(result) > 0 {
+		return result
+	}
+	return []JWTSigningKey{{KeyID: "default", Secret: env("JWT_SECRET", "local-development-secret-change-me")}}
 }
 
 func boolEnv(key string, fallback bool) bool {

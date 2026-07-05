@@ -40,16 +40,26 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	analyticsHandlers := analyticsHandler{service: analytics.NewService(dbPool)}
 	templateHandlers := templatesHandler{service: templates.NewService(dbPool)}
 	departmentHandlers := departmentsHandler{service: departments.NewService(dbPool)}
+	rateLimitCounter, rateLimitErr := newRedisRateLimitCounter(cfg.RedisURL)
+	if rateLimitErr != nil {
+		slog.Error("rate limiter configuration failed", "error", rateLimitErr)
+	}
+	limitAuth := func(route string, next http.Handler) http.Handler {
+		if rateLimitCounter == nil {
+			return next
+		}
+		return ipRateLimiter{counter: rateLimitCounter, limit: 10, window: time.Minute}.middleware(route, next)
+	}
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ready", readinessHandler(cfg, dbPool))
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("GET /api/v1/ready", readinessHandler(cfg, dbPool))
-	mux.HandleFunc("POST /api/v1/auth/login", authHandlers.login)
+	mux.Handle("POST /api/v1/auth/login", limitAuth("/api/v1/auth/login", http.HandlerFunc(authHandlers.login)))
 	mux.HandleFunc("POST /api/v1/auth/refresh", authHandlers.refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandlers.logout)
-	mux.HandleFunc("POST /api/v1/auth/forgot-password", authHandlers.forgotPassword)
-	mux.HandleFunc("POST /api/v1/auth/reset-password", authHandlers.resetPassword)
+	mux.Handle("POST /api/v1/auth/forgot-password", limitAuth("/api/v1/auth/forgot-password", http.HandlerFunc(authHandlers.forgotPassword)))
+	mux.Handle("POST /api/v1/auth/reset-password", limitAuth("/api/v1/auth/reset-password", http.HandlerFunc(authHandlers.resetPassword)))
 	mux.HandleFunc("POST /api/v1/notifications/unsubscribe", notificationHandlers.unsubscribe)
 	mux.Handle("GET /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(authHandlers.me)))
 	mux.Handle("GET /api/v1/departments", authMiddleware(cfg, http.HandlerFunc(departmentHandlers.list)))

@@ -56,6 +56,11 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173}
+      JWT_SECRETS: ${JWT_SECRETS:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-720h}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-idp_refresh_token}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio12345}
@@ -86,6 +91,8 @@ services:
       EMAIL_QUEUE_KEY: ${EMAIL_QUEUE_KEY:-idp:email:queue}
       EMAIL_REMINDER_TIMEZONE: ${EMAIL_REMINDER_TIMEZONE:-Europe/Moscow}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      JWT_SECRETS: ${JWT_SECRETS:-}
+      JWT_SECRET: ${JWT_SECRET:-}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
