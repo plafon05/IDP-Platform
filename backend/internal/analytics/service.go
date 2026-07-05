@@ -12,6 +12,11 @@ import (
 
 var ErrForbidden = errors.New("analytics access forbidden")
 
+// Условие видимости и фильтрации ИПР меняется в одном месте.
+const overviewIDPFilterClause = `
+		i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
+		AND i.start_date<=$4 AND i.end_date>=$3 AND ($5='' OR i.status=$5)`
+
 type Service struct{ db *pgxpool.Pool }
 
 type Filters struct {
@@ -69,9 +74,7 @@ func (s *Service) Overview(ctx context.Context, access idp.Access, filters Filte
 		SELECT COUNT(DISTINCT i.id)::int,COUNT(DISTINCT i.employee_id)::int,COUNT(DISTINCT t.id)::int,
 			COALESCE(ROUND(AVG(t.progress))::int,0)
 		FROM idps i LEFT JOIN tasks t ON t.idp_id=i.id AND t.deleted_at IS NULL
-		WHERE i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
-			AND i.start_date<=$4 AND i.end_date>=$3 AND ($5='' OR i.status=$5)
-	`, access.IsHR, access.UserID, filters.From, filters.To, filters.Status).Scan(
+		WHERE `+overviewIDPFilterClause, access.IsHR, access.UserID, filters.From, filters.To, filters.Status).Scan(
 		&result.Summary.Plans, &result.Summary.Employees, &result.Summary.Tasks, &result.Summary.AverageProgress,
 	); err != nil {
 		return nil, err
@@ -79,8 +82,7 @@ func (s *Service) Overview(ctx context.Context, access idp.Access, filters Filte
 
 	rows, err := s.db.Query(ctx, `
 		SELECT i.status,COUNT(*)::int FROM idps i
-		WHERE i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
-			AND i.start_date<=$4 AND i.end_date>=$3 AND ($5='' OR i.status=$5)
+		WHERE `+overviewIDPFilterClause+`
 		GROUP BY i.status ORDER BY i.status
 	`, access.IsHR, access.UserID, filters.From, filters.To, filters.Status)
 	if err != nil {
@@ -130,8 +132,7 @@ func (s *Service) Overview(ctx context.Context, access idp.Access, filters Filte
 	result.Competencies, err = s.namedMetrics(ctx, `
 		SELECT c.name,COUNT(*)::int FROM idp_competencies ic
 		JOIN competencies c ON c.id=ic.competency_id JOIN idps i ON i.id=ic.idp_id
-		WHERE i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
-			AND i.start_date<=$4 AND i.end_date>=$3 AND ($5='' OR i.status=$5)
+		WHERE `+overviewIDPFilterClause+`
 		GROUP BY c.id ORDER BY COUNT(*) DESC,c.name LIMIT 10
 	`, access, filters)
 	if err != nil {
@@ -140,8 +141,7 @@ func (s *Service) Overview(ctx context.Context, access idp.Access, filters Filte
 	result.Categories, err = s.namedMetrics(ctx, `
 		SELECT COALESCE(c.name,'Без категории'),COUNT(*)::int FROM tasks t
 		JOIN idps i ON i.id=t.idp_id LEFT JOIN task_categories c ON c.id=t.category_id
-		WHERE t.deleted_at IS NULL AND i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
-			AND i.start_date<=$4 AND i.end_date>=$3 AND ($5='' OR i.status=$5)
+		WHERE t.deleted_at IS NULL AND `+overviewIDPFilterClause+`
 		GROUP BY c.id,c.name ORDER BY COUNT(*) DESC,COALESCE(c.name,'Без категории')
 	`, access, filters)
 	if err != nil {
@@ -153,8 +153,7 @@ func (s *Service) Overview(ctx context.Context, access idp.Access, filters Filte
 			COUNT(DISTINCT i.id)::int,COUNT(DISTINCT t.id)::int,COALESCE(ROUND(AVG(t.progress))::int,0)
 		FROM users u JOIN idps i ON i.employee_id=u.id
 		LEFT JOIN tasks t ON t.idp_id=i.id AND t.deleted_at IS NULL
-		WHERE u.is_active=true AND i.archived_at IS NULL AND ($1 OR i.manager_id=$2)
-			AND i.start_date<=$4 AND i.end_date>=$3 AND ($5='' OR i.status=$5)
+		WHERE u.is_active=true AND `+overviewIDPFilterClause+`
 		GROUP BY u.id ORDER BY AVG(t.progress) DESC NULLS LAST,u.last_name,u.first_name
 	`, access.IsHR, access.UserID, filters.From, filters.To, filters.Status)
 	if err != nil {
