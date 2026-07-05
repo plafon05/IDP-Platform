@@ -209,7 +209,7 @@ func (s *Service) Create(ctx context.Context, access idp.Access, idpID string, i
 		return nil, err
 	}
 	if plan.Status == "active" {
-		if err := s.enqueueTaskChange(ctx, tx, plan.EmployeeID, "created", strings.TrimSpace(input.Title), input.DueDate); err != nil {
+		if err := s.enqueueTaskChange(ctx, tx, plan.EmployeeID, "created", strings.TrimSpace(input.Title), input.DueDate, idpID, id); err != nil {
 			return nil, err
 		}
 	}
@@ -262,7 +262,7 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 		return nil, err
 	}
 	if plan.Status == "active" && taskDefinitionChanged(current, input) {
-		if err := s.enqueueTaskChange(ctx, tx, plan.EmployeeID, "updated", strings.TrimSpace(input.Title), input.DueDate); err != nil {
+		if err := s.enqueueTaskChange(ctx, tx, plan.EmployeeID, "updated", strings.TrimSpace(input.Title), input.DueDate, current.IDPID, taskID); err != nil {
 			return nil, err
 		}
 	}
@@ -274,7 +274,7 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 		data := map[string]string{
 			"first_name": firstName,
 			"task_title": strings.TrimSpace(input.Title),
-			"plans_url":  s.frontendURL + "/plans",
+			"plans_url":  s.frontendURL + "/plans?id=" + current.IDPID + "&section=tasks&task=" + taskID,
 		}
 		if rating := trimmed(input.ManagerRating); rating != nil {
 			data["rating"] = *rating
@@ -295,7 +295,7 @@ func (s *Service) Update(ctx context.Context, access idp.Access, taskID string, 
 	return s.Get(ctx, access, taskID)
 }
 
-func (s *Service) enqueueTaskChange(ctx context.Context, tx pgx.Tx, employeeID, event, title string, dueDate *time.Time) error {
+func (s *Service) enqueueTaskChange(ctx context.Context, tx pgx.Tx, employeeID, event, title string, dueDate *time.Time, idpID, taskID string) error {
 	if s.publisher == nil {
 		return nil
 	}
@@ -304,7 +304,8 @@ func (s *Service) enqueueTaskChange(ctx context.Context, tx pgx.Tx, employeeID, 
 		return err
 	}
 	data := map[string]string{
-		"event": event, "task_title": title, "plans_url": s.frontendURL + "/plans",
+		"event": event, "task_title": title,
+		"plans_url": s.frontendURL + "/plans?id=" + idpID + "&section=tasks&task=" + taskID,
 	}
 	if dueDate != nil {
 		data["due_date"] = dueDate.Format(time.DateOnly)

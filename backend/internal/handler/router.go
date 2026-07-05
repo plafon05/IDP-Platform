@@ -33,7 +33,10 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	taskHandlers := tasksHandler{service: tasks.NewService(dbPool, publisher, cfg.FrontendURL)}
 	commentHandlers := commentsHandler{service: comments.NewService(dbPool, publisher, cfg.FrontendURL)}
 	dashboardHandlers := dashboardHandler{service: dashboard.NewService(dbPool)}
-	notificationHandlers := notificationHandler{service: notification.NewPreferencesService(dbPool, cfg.JWTSecret)}
+	notificationHandlers := notificationHandler{
+		preferences: notification.NewPreferencesService(dbPool, cfg.JWTSecret),
+		inApp:       notification.NewInAppService(dbPool),
+	}
 	analyticsHandlers := analyticsHandler{service: analytics.NewService(dbPool)}
 	templateHandlers := templatesHandler{service: templates.NewService(dbPool)}
 	departmentHandlers := departmentsHandler{service: departments.NewService(dbPool)}
@@ -62,6 +65,9 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	mux.Handle("POST /api/v1/idp-templates/{id}/apply", authMiddleware(cfg, http.HandlerFunc(templateHandlers.apply)))
 	mux.Handle("GET /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.getPreferences)))
 	mux.Handle("PUT /api/v1/notifications/preferences", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.updatePreferences)))
+	mux.Handle("GET /api/v1/notifications", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.list)))
+	mux.Handle("PATCH /api/v1/notifications/read-all", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.markAllRead)))
+	mux.Handle("PATCH /api/v1/notifications/{id}/read", authMiddleware(cfg, http.HandlerFunc(notificationHandlers.markRead)))
 	mux.Handle("PUT /api/v1/users/me", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateProfile)))
 	mux.Handle("PUT /api/v1/users/me/password", authMiddleware(cfg, http.HandlerFunc(usersHandlers.changePassword)))
 	mux.Handle("PUT /api/v1/users/me/avatar", authMiddleware(cfg, http.HandlerFunc(usersHandlers.updateAvatar)))

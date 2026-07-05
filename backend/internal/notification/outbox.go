@@ -45,7 +45,10 @@ func insertJob(ctx context.Context, db queryExecer, job Job) error {
 		return err
 	}
 	_, err = db.Exec(ctx, `INSERT INTO notification_outbox (payload) VALUES ($1)`, payload)
-	return err
+	if err != nil {
+		return err
+	}
+	return insertInApp(ctx, db, job)
 }
 
 type Relay struct {

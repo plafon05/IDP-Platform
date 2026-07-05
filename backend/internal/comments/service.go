@@ -47,6 +47,7 @@ type Comment struct {
 type entityAccess struct {
 	EmployeeID string
 	ManagerID  string
+	IDPID      string
 }
 
 func NewService(db *pgxpool.Pool, publisher notification.Publisher, frontendURL string) *Service {
@@ -161,11 +162,15 @@ func (s *Service) enqueueCommentNotifications(ctx context.Context, tx pgx.Tx, au
 		excerpt = append(excerpt[:237], '.', '.', '.')
 	}
 	for _, recipient := range recipients {
+		plansURL := s.frontendURL + "/plans?id=" + entity.IDPID + "&section=comments"
+		if entityType == "task" {
+			plansURL = s.frontendURL + "/plans?id=" + entity.IDPID + "&section=tasks&task=" + entityID + "&task_section=comments"
+		}
 		if err := s.publisher.EnqueueTx(ctx, tx, notification.Job{
 			UserID: recipient.id, To: []string{recipient.email}, Template: notification.CommentCreatedTemplate,
 			Data: map[string]string{
 				"author_name": authorName, "entity_type": entityType, "entity_title": entityTitle,
-				"excerpt": string(excerpt), "plans_url": s.frontendURL + "/plans",
+				"excerpt": string(excerpt), "plans_url": plansURL,
 			},
 		}); err != nil {
 			return err
@@ -267,9 +272,9 @@ func (s *Service) entity(ctx context.Context, entityType, entityID string) (*ent
 	var err error
 	switch entityType {
 	case "idp":
-		err = s.db.QueryRow(ctx, `SELECT employee_id::text, manager_id::text FROM idps WHERE id=$1 AND archived_at IS NULL`, entityID).Scan(&item.EmployeeID, &item.ManagerID)
+		err = s.db.QueryRow(ctx, `SELECT employee_id::text, manager_id::text, id::text FROM idps WHERE id=$1 AND archived_at IS NULL`, entityID).Scan(&item.EmployeeID, &item.ManagerID, &item.IDPID)
 	case "task":
-		err = s.db.QueryRow(ctx, `SELECT i.employee_id::text, i.manager_id::text FROM tasks t JOIN idps i ON i.id=t.idp_id WHERE t.id=$1 AND t.deleted_at IS NULL AND i.archived_at IS NULL`, entityID).Scan(&item.EmployeeID, &item.ManagerID)
+		err = s.db.QueryRow(ctx, `SELECT i.employee_id::text, i.manager_id::text, i.id::text FROM tasks t JOIN idps i ON i.id=t.idp_id WHERE t.id=$1 AND t.deleted_at IS NULL AND i.archived_at IS NULL`, entityID).Scan(&item.EmployeeID, &item.ManagerID, &item.IDPID)
 	default:
 		return nil, ErrInvalidInput
 	}

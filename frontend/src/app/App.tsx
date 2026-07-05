@@ -1,5 +1,4 @@
 import {
-  Bell,
   BookOpenCheck,
   ChartNoAxesCombined,
   ClipboardCopy,
@@ -23,6 +22,7 @@ import { UsersPage } from '../pages/UsersPage';
 import { UnsubscribePage } from '../pages/UnsubscribePage';
 import { TemplatesPage } from '../pages/TemplatesPage';
 import { DepartmentsPage } from '../pages/DepartmentsPage';
+import { NotificationCenter } from './NotificationCenter';
 
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const AnalyticsPage = lazy(() => import('../pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
@@ -53,6 +53,7 @@ export function App() {
   const bootstrap = useSessionStore((state) => state.bootstrap);
   const logout = useSessionStore((state) => state.logout);
   const [section, setSection] = useState<Section>(sectionFromPath);
+  const [notificationNavigationKey, setNotificationNavigationKey] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
   function toggleTheme() {
@@ -89,10 +90,10 @@ export function App() {
     return items;
   }, [user?.roles]);
 
-  function openNotificationSettings() {
-    window.history.pushState({}, '', '/settings#notifications');
-    setSection('settings');
-    window.setTimeout(() => document.getElementById('notifications')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  function navigatePath(path: string) {
+    window.history.pushState({}, '', path);
+    setSection(sectionFromPath());
+    setNotificationNavigationKey((value) => value + 1);
   }
 
   useEffect(() => {
@@ -206,9 +207,7 @@ export function App() {
           </div>
 
           <div className="topbar-actions">
-            <button className="icon-button" onClick={openNotificationSettings} type="button" aria-label="Настройки уведомлений" title="Настройки уведомлений">
-              <Bell size={20} />
-            </button>
+            <NotificationCenter onNavigate={navigatePath} />
             <button className="icon-button" onClick={toggleTheme} type="button" aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -232,7 +231,7 @@ export function App() {
           {activeSection === 'users' && <UsersPage />}
           {activeSection === 'departments' && <DepartmentsPage />}
           {activeSection === 'catalog' && <CatalogPage />}
-          {activeSection === 'plans' && <IDPsPage />}
+          {activeSection === 'plans' && <IDPsPage key={notificationNavigationKey} />}
           {activeSection === 'templates' && <TemplatesPage />}
           {activeSection === 'employee-profile' && <Suspense fallback={<div className="empty-state">Загрузка профиля...</div>}><EmployeeProfilePage employeeID={window.location.pathname.split('/')[2] ?? ''} /></Suspense>}
           {activeSection === 'analytics' && <Suspense fallback={<div className="empty-state">Загрузка аналитики...</div>}><AnalyticsPage /></Suspense>}

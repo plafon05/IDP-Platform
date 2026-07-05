@@ -51,6 +51,8 @@ export function IDPsPage() {
   const [editingID, setEditingID] = useState<string | null>(null);
   const [expandedPlan, setExpandedPlan] = useState<IDP | null>(null);
   const [expandedSection, setExpandedSection] = useState<'tasks' | 'comments' | 'history' | null>(null);
+  const [linkedTaskID, setLinkedTaskID] = useState<string | null>(null);
+  const [linkedTaskSection, setLinkedTaskSection] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'idle' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -69,10 +71,16 @@ export function IDPsPage() {
           : {};
       const plansResult = await listIDPs(filters);
       setPlans(plansResult);
-	  const requestedPlanID = new URLSearchParams(window.location.search).get('id');
+	  const params = new URLSearchParams(window.location.search);
+	  const requestedPlanID = params.get('id');
 	  if (requestedPlanID && plansResult.some((plan) => plan.id === requestedPlanID)) {
 	    setExpandedPlan(await getIDP(requestedPlanID));
-	    setExpandedSection('tasks');
+	    const requestedSection = params.get('section');
+	    setExpandedSection(requestedSection === 'comments' || requestedSection === 'history' ? requestedSection : 'tasks');
+	    setLinkedTaskID(params.get('task'));
+	    setLinkedTaskSection(params.get('task_section'));
+	    window.history.replaceState({}, '', '/plans');
+	    window.setTimeout(() => document.getElementById(`idp-${requestedPlanID}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
 	  }
 
       if (canCreateInScope) {
@@ -278,7 +286,7 @@ export function IDPsPage() {
             {plans.length === 0 && status !== 'loading' && <div className="empty-state">ИПР пока нет</div>}
             {plans.map((plan) => {
               const canManagePlan = isHR || (isManager && plan.manager_id === currentUser?.id);
-              return <article className="idp-row" key={plan.id}>
+              return <article className="idp-row" id={`idp-${plan.id}`} key={plan.id}>
                 <div className="idp-main">
                   <div>
                     <strong>{plan.title}</strong>
@@ -385,6 +393,12 @@ export function IDPsPage() {
                       plan={expandedPlan}
                       canManage={canManagePlan}
                       isEmployee={currentUser?.id === expandedPlan.employee_id}
+                      focusedTaskID={linkedTaskID}
+                      focusedTaskSection={linkedTaskSection}
+                      onFocusedTaskHandled={() => {
+                        setLinkedTaskID(null);
+                        setLinkedTaskSection(null);
+                      }}
                       onChanged={load}
                     />}
                     {expandedSection === 'comments' && <CommentsThread entityType="idp" entityID={expandedPlan.id} title="Комментарии к ИПР" />}

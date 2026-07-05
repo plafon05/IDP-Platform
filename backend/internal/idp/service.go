@@ -371,7 +371,7 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 			"first_name": firstName,
 			"idp_title":  current.Title,
 			"status":     input.Status,
-			"idp_url":    s.frontendURL + "/plans",
+			"idp_url":    s.frontendURL + "/plans?id=" + id,
 		}
 		if cancelReason != nil {
 			data["reason"] = *cancelReason

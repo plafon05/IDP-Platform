@@ -53,7 +53,7 @@ func (s *ReminderScheduler) process(ctx context.Context, now time.Time) error {
 	defer tx.Rollback(ctx)
 
 	rows, err := tx.Query(ctx, `
-		SELECT t.id::text, t.title, t.due_date,
+		SELECT t.id::text, t.idp_id::text, t.title, t.due_date,
 			employee.id::text, employee.email, manager.id::text, manager.email
 		FROM tasks t
 		JOIN idps i ON i.id=t.idp_id
@@ -68,13 +68,13 @@ func (s *ReminderScheduler) process(ctx context.Context, now time.Time) error {
 		return err
 	}
 	type reminder struct {
-		id, title, employeeID, employeeEmail, managerID, managerEmail string
-		dueDate                                                       time.Time
+		id, idpID, title, employeeID, employeeEmail, managerID, managerEmail string
+		dueDate                                                              time.Time
 	}
 	var items []reminder
 	for rows.Next() {
 		var item reminder
-		if err := rows.Scan(&item.id, &item.title, &item.dueDate, &item.employeeID, &item.employeeEmail, &item.managerID, &item.managerEmail); err != nil {
+		if err := rows.Scan(&item.id, &item.idpID, &item.title, &item.dueDate, &item.employeeID, &item.employeeEmail, &item.managerID, &item.managerEmail); err != nil {
 			rows.Close()
 			return err
 		}
@@ -109,7 +109,8 @@ func (s *ReminderScheduler) process(ctx context.Context, now time.Time) error {
 				UserID: recipient.id, To: []string{recipient.email}, Template: TaskDeadlineTemplate,
 				Data: map[string]string{
 					"kind": kind, "task_title": item.title,
-					"due_date": item.dueDate.Format(time.DateOnly), "plans_url": s.frontendURL + "/plans",
+					"due_date":  item.dueDate.Format(time.DateOnly),
+					"plans_url": s.frontendURL + "/plans?id=" + item.idpID + "&section=tasks&task=" + item.id,
 				},
 			}); err != nil {
 				return err

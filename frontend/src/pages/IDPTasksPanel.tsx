@@ -41,10 +41,13 @@ type Props = {
   plan: IDP;
   canManage: boolean;
   isEmployee: boolean;
+  focusedTaskID?: string | null;
+  focusedTaskSection?: string | null;
+  onFocusedTaskHandled?: () => void;
   onChanged: () => Promise<void>;
 };
 
-export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props) {
+export function IDPTasksPanel({ plan, canManage, isEmployee, focusedTaskID, focusedTaskSection, onFocusedTaskHandled, onChanged }: Props) {
   const [tasks, setTasks] = useState<IDPTask[]>([]);
   const [categories, setCategories] = useState<NamedCatalogItem[]>([]);
   const [tags, setTags] = useState<NamedCatalogItem[]>([]);
@@ -73,6 +76,14 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
   }
 
   useEffect(() => { void loadTasks(); }, [plan.id, filters.status, filters.priority, filters.competencyId, filters.sort, filters.order]);
+
+  useEffect(() => {
+    if (!focusedTaskID || !tasks.some((task) => task.id === focusedTaskID)) return;
+    if (focusedTaskSection === 'comments') setCommentTaskID(focusedTaskID);
+    if (focusedTaskSection === 'history') setAuditTaskID(focusedTaskID);
+    window.setTimeout(() => document.getElementById(`task-${focusedTaskID}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    onFocusedTaskHandled?.();
+  }, [focusedTaskID, focusedTaskSection, tasks]);
 
   useEffect(() => {
     if (!editable) {
@@ -184,7 +195,7 @@ export function IDPTasksPanel({ plan, canManage, isEmployee, onChanged }: Props)
 
       <div className="task-list" aria-busy={busy}>
         {tasks.map((task) => (
-          <div className="task-item" key={task.id}>
+          <div className="task-item" id={`task-${task.id}`} key={task.id}>
             <div className="task-title-row">
               <div>
                 <strong>{task.title}</strong>
