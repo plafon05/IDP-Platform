@@ -12,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"idp-platform/backend/internal/analytics"
 	"idp-platform/backend/internal/auth"
 	"idp-platform/backend/internal/config"
 	"idp-platform/backend/internal/handler"
+	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/migrations"
 	"idp-platform/backend/internal/notification"
 
@@ -23,16 +25,18 @@ import (
 )
 
 type fixture struct {
-	db         *pgxpool.Pool
-	router     http.Handler
-	cfg        config.Config
-	employeeID string
-	managerID  string
-	outsiderID string
-	hrID       string
-	idpID      string
-	taskID     string
-	publisher  *recordingPublisher
+	db          *pgxpool.Pool
+	router      http.Handler
+	cfg         config.Config
+	employeeID  string
+	managerID   string
+	outsiderID  string
+	hrID        string
+	idpID       string
+	taskID      string
+	otherIDPID  string
+	otherTaskID string
+	publisher   *recordingPublisher
 }
 
 type recordingPublisher struct{ jobs []notification.Job }
@@ -61,7 +65,8 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		AppEnv: "test", DatabaseURL: dsn, JWTSecret: "integration-test-secret",
+		AppEnv: "test", DatabaseURL: dsn,
+		JWTSecrets:   []config.JWTSigningKey{{KeyID: "integration", Secret: "integration-test-secret"}},
 		JWTAccessTTL: time.Hour, JWTRefreshTTL: time.Hour, CORSOrigins: []string{"http://example.test"},
 	}
 	root, err := filepath.Abs("..")
@@ -134,7 +139,7 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	})
 
 	t.Run("analytics scope", func(t *testing.T) {
-		path := "/api/v1/analytics/overview?from=2026-01-01&to=2026-12-31"
+		path := "/api/v1/analytics/overview?from=2025-01-01&to=2026-12-31"
 		f.request(t, employeeToken, http.MethodGet, path, nil, http.StatusForbidden)
 		managerResponse := f.request(t, managerToken, http.MethodGet, path, nil, http.StatusOK)
 		hrResponse := f.request(t, hrToken, http.MethodGet, path, nil, http.StatusOK)
@@ -153,9 +158,46 @@ func TestPhase2RoleMatrix(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if managerResult.Summary.Plans != 1 || hrResult.Summary.Plans != 1 || outsiderResult.Summary.Plans != 0 {
+		if managerResult.Summary.Plans != 1 || hrResult.Summary.Plans != 2 || outsiderResult.Summary.Plans != 1 {
 			t.Fatalf("unexpected analytics scope: manager=%d hr=%d outsider=%d", managerResult.Summary.Plans, hrResult.Summary.Plans, outsiderResult.Summary.Plans)
 		}
+	})
+
+	t.Run("analytics service aggregates", func(t *testing.T) {
+		service := analytics.NewService(f.db)
+		period := analytics.Filters{From: date(t, "2025-01-01"), To: date(t, "2026-12-31")}
+
+		t.Run("manager sees only own employees", func(t *testing.T) {
+			result, err := service.Overview(context.Background(), idp.Access{UserID: f.managerID, Manager: true}, period)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Summary != (analytics.Summary{Plans: 1, Employees: 1, Tasks: 1, AverageProgress: 20}) || len(result.Employees) != 1 {
+				t.Fatalf("unexpected manager analytics: %+v employees=%d", result.Summary, len(result.Employees))
+			}
+		})
+
+		t.Run("hr sees organization aggregates", func(t *testing.T) {
+			result, err := service.Overview(context.Background(), idp.Access{UserID: f.hrID, IsHR: true}, period)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Summary != (analytics.Summary{Plans: 2, Employees: 2, Tasks: 2, AverageProgress: 50}) || len(result.Statuses) != 2 || len(result.Employees) != 2 {
+				t.Fatalf("unexpected HR analytics: %+v statuses=%#v employees=%d", result.Summary, result.Statuses, len(result.Employees))
+			}
+		})
+
+		t.Run("date and status filters are applied", func(t *testing.T) {
+			result, err := service.Overview(context.Background(), idp.Access{UserID: f.hrID, IsHR: true}, analytics.Filters{
+				From: date(t, "2026-01-01"), To: date(t, "2026-12-31"), Status: "active",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Summary != (analytics.Summary{Plans: 1, Employees: 1, Tasks: 1, AverageProgress: 20}) || len(result.Statuses) != 1 || result.Statuses[0].Name != "active" {
+				t.Fatalf("unexpected filtered analytics: %+v statuses=%#v", result.Summary, result.Statuses)
+			}
+		})
 	})
 
 	t.Run("template creates draft plan", func(t *testing.T) {
@@ -201,10 +243,10 @@ func TestPhase2RoleMatrix(t *testing.T) {
 
 	t.Run("task uses category and tag", func(t *testing.T) {
 		var categoryID, tagID string
-		if err := f.db.QueryRow(context.Background(), `INSERT INTO task_categories(name) VALUES('Course') RETURNING id::text`).Scan(&categoryID); err != nil {
+		if err := f.db.QueryRow(context.Background(), `INSERT INTO task_categories(name) VALUES('Course') ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id::text`).Scan(&categoryID); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.db.QueryRow(context.Background(), `INSERT INTO tags(name) VALUES('Backend') RETURNING id::text`).Scan(&tagID); err != nil {
+		if err := f.db.QueryRow(context.Background(), `INSERT INTO tags(name) VALUES('Backend') ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id::text`).Scan(&tagID); err != nil {
 			t.Fatal(err)
 		}
 		response := f.request(t, managerToken, http.MethodPost, "/api/v1/idps/"+f.idpID+"/tasks", map[string]any{
@@ -266,6 +308,64 @@ func TestPhase2RoleMatrix(t *testing.T) {
 		f.request(t, employeeToken, http.MethodPatch, "/api/v1/tasks/"+f.taskID+"/progress", map[string]any{"status": "completed", "progress": 100}, http.StatusOK)
 		f.request(t, managerToken, http.MethodPatch, "/api/v1/idps/"+f.idpID+"/status", map[string]string{"status": "completed"}, http.StatusOK)
 	})
+
+	t.Run("idor protection", func(t *testing.T) {
+		foreignTaskPath := "/api/v1/tasks/" + f.otherTaskID
+		foreignIDPPath := "/api/v1/idps/" + f.otherIDPID
+		taskPayload := map[string]any{
+			"title": "Updated task", "priority": "medium", "status": "in_progress", "progress": 30,
+			"competency_ids": []any{}, "tag_ids": []any{}, "resources": []any{},
+		}
+		idpPayload := map[string]any{
+			"employee_id": f.outsiderID, "title": "Unauthorized update",
+			"start_date": "2027-01-01", "end_date": "2027-12-31", "competencies": []any{},
+		}
+
+		t.Run("employee cannot access another employee task", func(t *testing.T) {
+			f.request(t, employeeToken, http.MethodGet, foreignTaskPath, nil, http.StatusForbidden)
+			f.request(t, employeeToken, http.MethodGet, foreignIDPPath+"/tasks", nil, http.StatusForbidden)
+			f.request(t, employeeToken, http.MethodPatch, foreignTaskPath+"/progress", map[string]any{"status": "completed", "progress": 100}, http.StatusForbidden)
+			f.request(t, employeeToken, http.MethodGet, foreignTaskPath+"/audit", nil, http.StatusForbidden)
+		})
+
+		t.Run("unrelated manager cannot read or mutate task", func(t *testing.T) {
+			f.request(t, managerToken, http.MethodGet, foreignTaskPath, nil, http.StatusForbidden)
+			f.request(t, managerToken, http.MethodPut, foreignTaskPath, taskPayload, http.StatusForbidden)
+			f.request(t, managerToken, http.MethodDelete, foreignTaskPath, nil, http.StatusForbidden)
+			f.request(t, managerToken, http.MethodGet, foreignTaskPath+"/audit", nil, http.StatusForbidden)
+		})
+
+		for name, token := range map[string]string{"employee": employeeToken, "unrelated manager": managerToken} {
+			t.Run(name+" cannot access foreign IDP", func(t *testing.T) {
+				f.request(t, token, http.MethodGet, foreignIDPPath, nil, http.StatusForbidden)
+				f.request(t, token, http.MethodPut, foreignIDPPath, idpPayload, http.StatusForbidden)
+				f.request(t, token, http.MethodPatch, foreignIDPPath+"/status", map[string]string{"status": "cancelled", "reason": "unauthorized"}, http.StatusForbidden)
+				f.request(t, token, http.MethodDelete, foreignIDPPath, nil, http.StatusForbidden)
+				f.request(t, token, http.MethodGet, foreignIDPPath+"/audit", nil, http.StatusForbidden)
+			})
+		}
+
+		for name, token := range map[string]string{"employee": employeeToken, "unrelated manager": managerToken} {
+			t.Run(name+" cannot access foreign comments", func(t *testing.T) {
+				f.request(t, token, http.MethodGet, foreignIDPPath+"/comments", nil, http.StatusForbidden)
+				f.request(t, token, http.MethodPost, foreignIDPPath+"/comments", map[string]string{"content": "unauthorized"}, http.StatusForbidden)
+				f.request(t, token, http.MethodGet, foreignTaskPath+"/comments", nil, http.StatusForbidden)
+				f.request(t, token, http.MethodPost, foreignTaskPath+"/comments", map[string]string{"content": "unauthorized"}, http.StatusForbidden)
+			})
+		}
+
+		t.Run("hr has organization wide access", func(t *testing.T) {
+			f.request(t, hrToken, http.MethodGet, foreignTaskPath, nil, http.StatusOK)
+			f.request(t, hrToken, http.MethodPut, foreignTaskPath, taskPayload, http.StatusOK)
+			f.request(t, hrToken, http.MethodGet, foreignTaskPath+"/audit", nil, http.StatusOK)
+			f.request(t, hrToken, http.MethodGet, foreignIDPPath, nil, http.StatusOK)
+			f.request(t, hrToken, http.MethodPut, foreignIDPPath, idpPayload, http.StatusOK)
+			f.request(t, hrToken, http.MethodGet, foreignIDPPath+"/audit", nil, http.StatusOK)
+			f.request(t, hrToken, http.MethodGet, foreignIDPPath+"/comments", nil, http.StatusOK)
+			f.request(t, hrToken, http.MethodGet, foreignTaskPath+"/comments", nil, http.StatusOK)
+			f.request(t, hrToken, http.MethodDelete, foreignIDPPath, nil, http.StatusNoContent)
+		})
+	})
 }
 
 func (f *fixture) seed(t *testing.T) {
@@ -298,9 +398,31 @@ func (f *fixture) seed(t *testing.T) {
 	if err := tx.QueryRow(ctx, `INSERT INTO tasks(idp_id,title,priority,status,progress) VALUES($1,'Test task','medium','in_progress',20) RETURNING id::text`, f.idpID).Scan(&f.taskID); err != nil {
 		t.Fatal(err)
 	}
+	var analyticsPlanID string
+	if err := tx.QueryRow(ctx, `INSERT INTO idps(employee_id,manager_id,title,start_date,end_date,status) VALUES($1,$1,'Analytics plan','2025-01-01','2025-12-31','completed') RETURNING id::text`, f.outsiderID).Scan(&analyticsPlanID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO tasks(idp_id,title,priority,status,progress) VALUES($1,'Analytics task','medium','completed',80)`, analyticsPlanID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO idps(employee_id,manager_id,title,start_date,end_date,status) VALUES($1,$1,'Foreign plan','2027-01-01','2027-12-31','active') RETURNING id::text`, f.outsiderID).Scan(&f.otherIDPID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO tasks(idp_id,title,priority,status,progress) VALUES($1,'Foreign task','medium','in_progress',30) RETURNING id::text`, f.otherIDPID).Scan(&f.otherTaskID); err != nil {
+		t.Fatal(err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func date(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.DateOnly, value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
 }
 
 func (f *fixture) reset(t *testing.T) {
