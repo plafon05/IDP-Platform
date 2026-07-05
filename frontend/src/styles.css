@@ -1006,6 +1006,67 @@ main {
   margin-bottom: 18px;
 }
 
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-control {
+  position: relative;
+}
+
+.sort-control > .icon-button.active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.sort-menu {
+  position: absolute;
+  z-index: 30;
+  top: 46px;
+  right: 0;
+  display: grid;
+  width: 220px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+}
+
+.sort-menu button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+}
+
+.sort-menu button:last-child { border-bottom: 0; }
+.sort-menu button:hover,
+.sort-menu button.active { background: #f1f5f9; color: #1d4ed8; }
+
+[data-theme="dark"] .sort-menu {
+  border-color: #334155;
+  background: #0f172a;
+}
+
+[data-theme="dark"] .sort-menu button {
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .sort-menu button:hover,
+[data-theme="dark"] .sort-menu button.active { background: #172033; color: #93c5fd; }
+
 .status-pill {
   border-radius: 999px;
   padding: 5px 10px;

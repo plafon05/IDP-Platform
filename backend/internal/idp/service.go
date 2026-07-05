@@ -39,6 +39,8 @@ type ListParams struct {
 	EmployeeID string
 	ManagerID  string
 	Status     string
+	Sort       string
+	Order      string
 	Page       int
 	Limit      int
 }
@@ -119,9 +121,13 @@ func (s *Service) List(ctx context.Context, access Access, params ListParams) (*
 		params.Limit = 50
 	}
 	offset := (params.Page - 1) * params.Limit
+	orderBy, err := idpOrderBy(params.Sort, params.Order)
+	if err != nil {
+		return nil, err
+	}
 
 	var total int
-	err := s.db.QueryRow(ctx, `
+	err = s.db.QueryRow(ctx, `
 		SELECT COUNT(*)
 		FROM idps i
 		WHERE i.archived_at IS NULL
@@ -161,7 +167,7 @@ func (s *Service) List(ctx context.Context, access Access, params ListParams) (*
 			AND (NULLIF($5, '') IS NULL OR i.manager_id = NULLIF($5, '')::uuid)
 			AND ($6 = '' OR i.status = $6)
 		GROUP BY i.id, employee.id, manager.id
-		ORDER BY i.created_at DESC
+		ORDER BY `+orderBy+`, i.created_at DESC, i.id
 		LIMIT $7 OFFSET $8
 	`, access.IsHR, access.UserID, access.Manager, params.EmployeeID, params.ManagerID, params.Status, params.Limit, offset)
 	if err != nil {
@@ -187,6 +193,31 @@ func (s *Service) List(ctx context.Context, access Access, params ListParams) (*
 	}
 
 	return result, rows.Err()
+}
+
+func idpOrderBy(sort, order string) (string, error) {
+	if sort == "" {
+		sort = "created_at"
+	}
+	if order == "" {
+		order = "desc"
+	}
+	if order != "asc" && order != "desc" {
+		return "", ErrInvalidInput
+	}
+	columns := map[string]string{
+		"created_at": "i.created_at",
+		"start_date": "i.start_date",
+		"end_date":   "i.end_date",
+		"progress":   "COALESCE(ROUND(AVG(t.progress))::int,0)",
+		"employee":   "employee.last_name " + order + ", employee.first_name",
+		"status":     "CASE i.status WHEN 'active' THEN 1 WHEN 'draft' THEN 2 WHEN 'completed' THEN 3 WHEN 'cancelled' THEN 4 ELSE 5 END",
+	}
+	column, ok := columns[sort]
+	if !ok {
+		return "", ErrInvalidInput
+	}
+	return column + " " + order, nil
 }
 
 func (s *Service) Get(ctx context.Context, access Access, id string) (*Plan, error) {

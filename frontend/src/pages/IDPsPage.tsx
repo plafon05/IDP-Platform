@@ -1,5 +1,5 @@
-import { Activity, Archive, CheckCircle2, ChevronDown, ChevronUp, Edit3, FileSpreadsheet, FileText, MessageSquare, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Activity, Archive, ArrowUpDown, Check, CheckCircle2, ChevronDown, ChevronUp, Edit3, FileSpreadsheet, FileText, MessageSquare, Play, Plus, RefreshCw, Save, X, XCircle } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../entities/session/model';
 import { listCompetencies, type Competency } from '../shared/api/catalog';
 import {
@@ -37,6 +37,16 @@ const emptyForm = {
   competencies: [] as IDPCompetency[],
 };
 
+const sortOptions = [
+  { value: 'start_date:desc', label: 'Недавно начавшиеся' },
+  { value: 'start_date:asc', label: 'Давно начавшиеся' },
+  { value: 'end_date:asc', label: 'Ближайшее завершение' },
+  { value: 'end_date:desc', label: 'Позднее завершение' },
+  { value: 'progress:desc', label: 'Высокий прогресс' },
+  { value: 'employee:asc', label: 'По сотруднику' },
+  { value: 'status:asc', label: 'По статусу' },
+] as const;
+
 export function IDPsPage() {
   const layoutRef = useMatchedRegistryHeight();
   const currentUser = useSessionStore((state) => state.user);
@@ -56,19 +66,23 @@ export function IDPsPage() {
   const [status, setStatus] = useState<'loading' | 'idle' | 'saving'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sortValue, setSortValue] = useState('start_date:desc');
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
 
   const activeCount = useMemo(() => plans.filter((plan) => plan.status === 'active').length, [plans]);
   const canCreateInScope = isHR ? scope === 'all' : isManager && scope === 'team';
+  const availableSortOptions = useMemo(() => sortOptions.filter((option) => option.value !== 'employee:asc' || scope !== 'own'), [scope]);
 
   async function load() {
     setStatus('loading');
     setError(null);
     try {
       const filters = scope === 'own'
-        ? { employeeId: currentUser?.id }
+        ? { employeeId: currentUser?.id, ...sortParams(sortValue) }
         : scope === 'team'
-          ? { managerId: currentUser?.id }
-          : {};
+          ? { managerId: currentUser?.id, ...sortParams(sortValue) }
+          : sortParams(sortValue);
       const plansResult = await listIDPs(filters);
       setPlans(plansResult);
 	  const params = new URLSearchParams(window.location.search);
@@ -103,7 +117,19 @@ export function IDPsPage() {
     setExpandedSection(null);
     resetForm();
     void load();
-  }, [scope]);
+  }, [scope, sortValue]);
+
+  useEffect(() => {
+    if (scope === 'own' && sortValue === 'employee:asc') setSortValue('start_date:desc');
+  }, [scope, sortValue]);
+
+  useEffect(() => {
+    function closeSort(event: MouseEvent) {
+      if (!sortRef.current?.contains(event.target as Node)) setSortOpen(false);
+    }
+    document.addEventListener('mousedown', closeSort);
+    return () => document.removeEventListener('mousedown', closeSort);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -277,9 +303,19 @@ export function IDPsPage() {
               <h2>{scope === 'own' ? 'Мои планы развития' : scope === 'team' ? 'Планы команды' : 'Все планы развития'}</h2>
               <p>{scope === 'own' ? 'ИПР, назначенные вам' : scope === 'team' ? 'ИПР ваших прямых подчинённых' : 'ИПР сотрудников организации'}</p>
             </div>
-            <button className="icon-button" onClick={() => void load()} type="button" aria-label="Обновить">
-              <RefreshCw size={18} />
-            </button>
+            <div className="panel-header-actions">
+              <div className="sort-control" ref={sortRef}>
+                <button className={`icon-button ${sortOpen ? 'active' : ''}`} onClick={() => setSortOpen((value) => !value)} type="button" aria-label="Сортировка ИПР" title={`Сортировка: ${availableSortOptions.find((option) => option.value === sortValue)?.label}`} aria-expanded={sortOpen}>
+                  <ArrowUpDown size={18} />
+                </button>
+                {sortOpen && <div className="sort-menu" role="menu" aria-label="Сортировка ИПР">
+                  {availableSortOptions.map((option) => <button className={sortValue === option.value ? 'active' : ''} onClick={() => { setSortValue(option.value); setSortOpen(false); }} role="menuitemradio" aria-checked={sortValue === option.value} type="button" key={option.value}><span>{option.label}</span>{sortValue === option.value && <Check size={16} />}</button>)}
+                </div>}
+              </div>
+              <button className="icon-button" onClick={() => void load()} type="button" aria-label="Обновить">
+                <RefreshCw size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="idp-list" aria-busy={status === 'loading'}>
@@ -541,4 +577,9 @@ export function IDPsPage() {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ru-RU').format(new Date(`${value}T00:00:00`));
+}
+
+function sortParams(value: string) {
+  const [sort, order] = value.split(':');
+  return { sort, order: order as 'asc' | 'desc' };
 }

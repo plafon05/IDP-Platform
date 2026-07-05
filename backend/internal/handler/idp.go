@@ -41,6 +41,8 @@ func (h idpHandler) list(w http.ResponseWriter, r *http.Request) {
 		EmployeeID: strings.TrimSpace(r.URL.Query().Get("employeeId")),
 		ManagerID:  strings.TrimSpace(r.URL.Query().Get("managerId")),
 		Status:     strings.TrimSpace(r.URL.Query().Get("status")),
+		Sort:       strings.TrimSpace(r.URL.Query().Get("sort")),
+		Order:      strings.TrimSpace(r.URL.Query().Get("order")),
 		Page:       positiveInt(r.URL.Query().Get("page"), 1),
 		Limit:      positiveInt(r.URL.Query().Get("limit"), 50),
 	})

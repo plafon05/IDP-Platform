@@ -70,6 +70,11 @@ export function UsersPage() {
     }
   }
 
+  function refreshUsers() {
+    setQuery('');
+    void loadUsers('');
+  }
+
   useEffect(() => {
     void loadUsers('');
     void listDepartments().then(setDepartments).catch(() => setDepartments([]));
@@ -235,7 +240,7 @@ export function UsersPage() {
               <h2>Список</h2>
               <p>HR управляет доступом сотрудников к платформе</p>
             </div>
-            <button className="icon-button" onClick={() => void loadUsers(query)} type="button" aria-label="Обновить">
+            <button className="icon-button" onClick={refreshUsers} type="button" aria-label="Обновить">
               <RefreshCw size={18} />
             </button>
           </div>

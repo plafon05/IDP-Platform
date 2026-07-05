@@ -77,3 +77,20 @@ func TestValidateInput(t *testing.T) {
 		t.Fatalf("long goals error = %v, want %v", err, ErrInvalidInput)
 	}
 }
+
+func TestIDPOrderByWhitelist(t *testing.T) {
+	for _, test := range []struct{ sort, order string }{
+		{"created_at", "desc"}, {"start_date", "desc"}, {"end_date", "asc"}, {"progress", "desc"},
+		{"employee", "asc"}, {"status", "asc"}, {"", ""},
+	} {
+		if value, err := idpOrderBy(test.sort, test.order); err != nil || value == "" {
+			t.Fatalf("idpOrderBy(%q,%q) rejected: %v", test.sort, test.order, err)
+		}
+	}
+	if _, err := idpOrderBy("title; DROP TABLE idps", "asc"); err != ErrInvalidInput {
+		t.Fatal("unknown sort must be rejected")
+	}
+	if _, err := idpOrderBy("created_at", "sideways"); err != ErrInvalidInput {
+		t.Fatal("unknown order must be rejected")
+	}
+}

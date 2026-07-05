@@ -48,7 +48,7 @@ type IDPListResponse = {
   };
 };
 
-export async function listIDPs(filters: { employeeId?: string; managerId?: string } = {}) {
+export async function listIDPs(filters: { employeeId?: string; managerId?: string; sort?: string; order?: 'asc' | 'desc' } = {}) {
   const response = await api.get<IDPListResponse>('/api/v1/idps', { params: { page: 1, limit: 50, ...filters } });
   return response.data.data;
 }
