@@ -2,6 +2,7 @@ package httpjson
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 )
 
@@ -32,5 +33,11 @@ func WriteError(w http.ResponseWriter, status int, code, message string) {
 func DecodeJSON(r *http.Request, payload any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
-	return decoder.Decode(payload)
+	if err := decoder.Decode(payload); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
