@@ -29,10 +29,9 @@ export type ChangePasswordPayload = {
 };
 
 export type ForgotPasswordResponse = {
-  status: string;
-  dev_reset_token?: string;
-  dev_reset_url?: string;
-  expires_at?: string;
+	status: string;
+	dev_reset_token?: string;
+	dev_reset_url?: string;
 };
 
 export async function login(email: string, password: string) {

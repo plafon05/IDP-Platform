@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getCurrentUser, login, logout, refreshSession, type User } from '../../shared/api/auth';
+import { login, logout, refreshSession, type User } from '../../shared/api/auth';
 import { setAccessToken } from '../../shared/api/client';
 
 type SessionStatus = 'checking' | 'authenticated' | 'anonymous';
