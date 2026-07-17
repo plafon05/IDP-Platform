@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 
@@ -117,14 +118,18 @@ func (h usersHandler) importCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, _, err := r.FormFile("file")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_FILE", "CSV file is required")
 		return
 	}
 	defer file.Close()
+	if header.Size > maxCSVImportSize {
+		httpjson.WriteError(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "CSV file is too large")
+		return
+	}
 
-	rows, rowErrors, err := parseUsersCSV(io.LimitReader(file, maxCSVImportSize))
+	rows, rowErrors, err := parseUsersCSV(file)
 	if err != nil {
 		httpjson.WriteError(w, http.StatusBadRequest, "INVALID_CSV", err.Error())
 		return
@@ -415,8 +420,10 @@ func hasRole(roles []string, role string) bool {
 }
 
 func validateCreateUser(req createUserRequest) error {
-	if strings.TrimSpace(req.Email) == "" {
-		return errors.New("email is required")
+	email := strings.TrimSpace(req.Email)
+	parsed, err := mail.ParseAddress(email)
+	if email == "" || err != nil || parsed.Address != email {
+		return errors.New("valid email is required")
 	}
 	if req.Password == "" {
 		return errors.New("password is required")

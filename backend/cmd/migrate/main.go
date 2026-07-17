@@ -11,7 +11,12 @@ import (
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
-	if err := migrations.Up(context.Background(), config.Load()); err != nil {
+	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
+	if err := migrations.Up(context.Background(), cfg); err != nil {
 		slog.Error("database migrations failed", "error", err)
 		os.Exit(1)
 	}

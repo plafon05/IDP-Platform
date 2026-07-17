@@ -17,6 +17,7 @@ func Connect(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse database config: %w", err)
 	}
+	poolConfig.ConnConfig.RuntimeParams["statement_timeout"] = "30s"
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -41,6 +42,24 @@ type Config struct {
 	SMTPFromName       string
 	EmailQueueKey      string
 	ReminderTimezone   string
+}
+
+// Validate rejects configuration that is convenient locally but unsafe in production.
+func (c Config) Validate() error {
+	if c.AppEnv != "production" {
+		return nil
+	}
+	for _, key := range c.JWTSecrets {
+		if key.Secret == "local-development-secret-change-me" || len(key.Secret) < 32 {
+			return fmt.Errorf("production JWT secrets must be non-default and at least 32 bytes")
+		}
+	}
+	if c.DatabaseURL == "postgres://idp:idp@localhost:5432/idp?sslmode=disable" ||
+		c.MinIOAccessKey == "minio" || c.MinIOSecretKey == "minio12345" ||
+		c.SeedAdminPassword == "Admin12345" {
+		return fmt.Errorf("production configuration contains development credentials")
+	}
+	return nil
 }
 
 func Load() Config {

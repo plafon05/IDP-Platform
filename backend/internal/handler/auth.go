@@ -118,10 +118,6 @@ func (h authHandler) forgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := forgotPasswordResponse{Status: "ok"}
-	if reset.ExpiresAt != nil {
-		expiresAt := reset.ExpiresAt.Format("2006-01-02T15:04:05Z07:00")
-		response.ExpiresAt = &expiresAt
-	}
 	response.DevResetToken = reset.DevResetToken
 	response.DevResetURL = reset.DevResetURL
 

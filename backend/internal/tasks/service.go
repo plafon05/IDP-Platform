@@ -337,12 +337,15 @@ func (s *Service) UpdateProgress(ctx context.Context, access idp.Access, taskID 
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE tasks SET status=$2, progress=$3, updated_at=NOW()
-		WHERE id=$1 AND deleted_at IS NULL
-	`, taskID, input.Status, input.Progress)
+		WHERE id=$1 AND status=$4 AND deleted_at IS NULL
+	`, taskID, input.Status, input.Progress, current.Status)
 	if err != nil {
 		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrIDPState
 	}
 	if err := writeAudit(ctx, tx, access.UserID, taskID, "task.progress_changed", current, input); err != nil {
 		return nil, err

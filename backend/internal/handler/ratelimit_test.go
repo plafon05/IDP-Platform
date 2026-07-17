@@ -94,14 +94,14 @@ func TestIPRateLimiterUsesIndependentRouteAndIPKeys(t *testing.T) {
 	}
 }
 
-func TestIPRateLimiterFailsOpenWhenRedisIsUnavailable(t *testing.T) {
+func TestIPRateLimiterFailsClosedWhenRedisIsUnavailable(t *testing.T) {
 	limiter := ipRateLimiter{counter: &fakeRateLimitCounter{err: errors.New("redis unavailable")}, limit: 10, window: time.Minute}
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/reset-password", nil)
 	limiter.middleware("/api/v1/auth/reset-password", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(response, request)
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("got status %d, want 204", response.Code)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got status %d, want 503", response.Code)
 	}
 }

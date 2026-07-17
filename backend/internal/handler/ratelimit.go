@@ -52,7 +52,7 @@ func (l ipRateLimiter) middleware(route string, next http.Handler) http.Handler 
 		count, err := l.counter.Increment(r.Context(), key, l.window)
 		if err != nil {
 			slog.Error("rate limiter unavailable", "route", route, "error", err)
-			next.ServeHTTP(w, r)
+			httpjson.WriteError(w, http.StatusServiceUnavailable, "RATE_LIMIT_UNAVAILABLE", "Authentication service temporarily unavailable")
 			return
 		}
 		if count > l.limit {

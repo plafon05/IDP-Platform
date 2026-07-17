@@ -367,15 +367,18 @@ func (s *Service) ChangeStatus(ctx context.Context, access Access, id string, in
 	if input.Status == "cancelled" {
 		cancelReason = trimmed(input.Reason)
 	}
-	_, err = tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE idps
 		SET status = $2,
 			cancel_reason = $3,
 			updated_at = NOW()
-		WHERE id = $1 AND archived_at IS NULL
-	`, id, input.Status, cancelReason)
+		WHERE id = $1 AND status = $4 AND archived_at IS NULL
+	`, id, input.Status, cancelReason, current.Status)
 	if err != nil {
 		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrInvalidTransition
 	}
 
 	if input.Status == "completed" && !empty(input.Comment) {

@@ -76,6 +76,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (*TokenPair
 	user, passwordHash, failedAttempts, lockedUntil, isActive, err := s.getUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			CompareDummyPassword(password)
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err

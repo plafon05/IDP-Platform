@@ -66,7 +66,7 @@ func (s *MinIO) ensureBucket(ctx context.Context) error {
 			"Effect": "Allow",
 			"Principal": {"AWS": ["*"]},
 			"Action": ["s3:GetObject"],
-			"Resource": ["arn:aws:s3:::%s/*"]
+			"Resource": ["arn:aws:s3:::%s/avatars/*"]
 		}]
 	}`, s.bucket)
 

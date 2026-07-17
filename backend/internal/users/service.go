@@ -195,14 +195,15 @@ func (s *Service) List(ctx context.Context, params ListParams) (*ListResult, err
 		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.DepartmentID, &user.DepartmentName, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
 			return nil, err
 		}
-		user.Roles, err = s.roles(ctx, user.ID)
-		if err != nil {
-			return nil, err
-		}
 		result.Data = append(result.Data, user)
 	}
-
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.assignRoles(ctx, result.Data); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *Service) Get(ctx context.Context, userID string) (*User, error) {
@@ -243,14 +244,15 @@ func (s *Service) ListSubordinates(ctx context.Context, managerID string) ([]Use
 		if err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.MiddleName, &user.Position, &user.DepartmentID, &user.DepartmentName, &user.ManagerID, &user.AvatarURL, &user.IsActive); err != nil {
 			return nil, err
 		}
-		user.Roles, err = s.roles(ctx, user.ID)
-		if err != nil {
-			return nil, err
-		}
 		result = append(result, user)
 	}
-
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.assignRoles(ctx, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *Service) ListIDPs(ctx context.Context, userID string) ([]IDPSummary, error) {
@@ -267,8 +269,8 @@ func (s *Service) ListIDPs(ctx context.Context, userID string) ([]IDPSummary, er
 			COUNT(t.id) FILTER (WHERE t.status = 'completed')::int,
 			COALESCE(ROUND(AVG(t.progress))::int, 0)
 		FROM idps i
-		LEFT JOIN tasks t ON t.idp_id = i.id
-		WHERE i.employee_id = $1
+		LEFT JOIN tasks t ON t.idp_id = i.id AND t.deleted_at IS NULL
+		WHERE i.employee_id = $1 AND i.archived_at IS NULL
 		GROUP BY i.id
 		ORDER BY i.created_at DESC
 	`, userID)
@@ -495,6 +497,12 @@ func (s *Service) Update(ctx context.Context, userID string, input UpdateInput) 
 	if err := replaceRoles(ctx, tx, userID, normalizeRoles(input.Roles)); err != nil {
 		return nil, err
 	}
+	if _, err := tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL`, userID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE idps SET manager_id=$2, updated_at=NOW() WHERE employee_id=$1 AND manager_id IS DISTINCT FROM $2 AND archived_at IS NULL`, userID, input.ManagerID); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -544,7 +552,12 @@ func (s *Service) ChangePassword(ctx context.Context, userID, currentPassword, n
 		return err
 	}
 
-	_, err = s.db.Exec(ctx, `
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `
 		UPDATE users
 		SET password_hash = $2,
 			failed_login_attempts = 0,
@@ -552,7 +565,13 @@ func (s *Service) ChangePassword(ctx context.Context, userID, currentPassword, n
 			updated_at = NOW()
 		WHERE id = $1
 	`, userID, newHash)
-	return err
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL`, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Service) UpdateAvatar(ctx context.Context, userID, avatarURL string) (*User, error) {
@@ -629,6 +648,34 @@ func (s *Service) roles(ctx context.Context, userID string) ([]string, error) {
 	}
 
 	return roles, rows.Err()
+}
+
+func (s *Service) assignRoles(ctx context.Context, users []User) error {
+	if len(users) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(users))
+	byID := make(map[string]*User, len(users))
+	for i := range users {
+		ids = append(ids, users[i].ID)
+		byID[users[i].ID] = &users[i]
+		users[i].Roles = []string{}
+	}
+	rows, err := s.db.Query(ctx, `SELECT user_id::text, role FROM user_roles WHERE user_id = ANY($1::uuid[]) ORDER BY role`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, role string
+		if err := rows.Scan(&id, &role); err != nil {
+			return err
+		}
+		if user := byID[id]; user != nil {
+			user.Roles = append(user.Roles, role)
+		}
+	}
+	return rows.Err()
 }
 
 func replaceRoles(ctx context.Context, tx pgx.Tx, userID string, roles []string) error {

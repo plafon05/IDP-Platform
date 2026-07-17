@@ -46,7 +46,9 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 	}
 	limitAuth := func(route string, next http.Handler) http.Handler {
 		if rateLimitCounter == nil {
-			return next
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				httpjson.WriteError(w, http.StatusServiceUnavailable, "RATE_LIMIT_UNAVAILABLE", "Authentication service temporarily unavailable")
+			})
 		}
 		return ipRateLimiter{counter: rateLimitCounter, limit: 10, window: time.Minute}.middleware(route, next)
 	}
@@ -129,7 +131,14 @@ func NewRouter(cfg config.Config, dbPool *pgxpool.Pool, avatarStore AvatarStore,
 		httpjson.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found")
 	})
 
-	return cors(cfg.CORSOrigins)(recoverer(timeout(60*time.Second, logger(routeOrNotFound(mux, notFound)))))
+	return cors(cfg.CORSOrigins)(recoverer(timeout(60*time.Second, maxBodySize(3<<20, logger(liveAccessMiddleware(cfg, dbPool, routeOrNotFound(mux, notFound)))))))
+}
+
+func maxBodySize(limit int64, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h authHandler) me(w http.ResponseWriter, r *http.Request) {
