@@ -18,8 +18,9 @@ type Job struct {
 }
 
 type Queue struct {
-	client *redis.Client
-	key    string
+	client        *redis.Client
+	key           string
+	processingKey string
 }
 
 func NewQueue(redisURL, key string) (*Queue, error) {
@@ -27,7 +28,7 @@ func NewQueue(redisURL, key string) (*Queue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Queue{client: redis.NewClient(options), key: key}, nil
+	return &Queue{client: redis.NewClient(options), key: key, processingKey: key + ":processing"}, nil
 }
 
 func (q *Queue) Ping(ctx context.Context) error { return q.client.Ping(ctx).Err() }
@@ -44,16 +45,42 @@ func (q *Queue) Enqueue(ctx context.Context, job Job) error {
 	return q.client.LPush(ctx, q.key, payload).Err()
 }
 
-func (q *Queue) Dequeue(ctx context.Context) (Job, error) {
-	result, err := q.client.BRPop(ctx, 5*time.Second, q.key).Result()
+// Dequeue moves a job to a processing list before returning it, so a crash does
+// not silently lose the job. Call Ack only after a successful delivery.
+func (q *Queue) Dequeue(ctx context.Context) (Job, string, error) {
+	payload, err := q.client.BRPopLPush(ctx, q.key, q.processingKey, 5*time.Second).Result()
 	if err != nil {
-		return Job{}, err
+		return Job{}, "", err
 	}
 	var job Job
-	if err := json.Unmarshal([]byte(result[1]), &job); err != nil {
-		return Job{}, err
+	if err := json.Unmarshal([]byte(payload), &job); err != nil {
+		return Job{}, payload, err
 	}
-	return job, nil
+	return job, payload, nil
+}
+
+func (q *Queue) Ack(ctx context.Context, payload string) error {
+	return q.client.LRem(ctx, q.processingKey, 1, payload).Err()
+}
+
+func (q *Queue) Requeue(ctx context.Context, payload string, job Job) error {
+	if err := q.Ack(ctx, payload); err != nil {
+		return err
+	}
+	return q.Enqueue(ctx, job)
+}
+
+// RecoverProcessing returns jobs left by an interrupted worker to the queue.
+func (q *Queue) RecoverProcessing(ctx context.Context) error {
+	for {
+		moved, err := q.client.LMove(ctx, q.processingKey, q.key, "RIGHT", "LEFT").Result()
+		if errors.Is(err, redis.Nil) || moved == "" {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (q *Queue) DeadLetter(ctx context.Context, job Job) error {

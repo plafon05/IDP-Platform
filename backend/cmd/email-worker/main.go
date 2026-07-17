@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -17,6 +18,10 @@ import (
 func main() {
 	cfg := config.Load()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	if err := cfg.Validate(); err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 	queue, err := notification.NewQueue(cfg.RedisURL, cfg.EmailQueueKey)
 	if err != nil {
 		slog.Error("email queue initialization failed", "error", err)
@@ -38,16 +43,26 @@ func main() {
 	}
 	defer db.Close()
 	outbox := notification.NewOutbox(db)
-	go notification.NewRelay(db, queue, cfg.JWTSecret, cfg.FrontendURL).Run(ctx)
+	var background sync.WaitGroup
+	background.Add(2)
+	go func() {
+		defer background.Done()
+		notification.NewRelay(db, queue, cfg.JWTSecret, cfg.FrontendURL).Run(ctx)
+	}()
+	go func() { defer background.Done(); notification.NewRetentionCleaner(db).Run(ctx) }()
 	reminders, err := notification.NewReminderScheduler(db, outbox, cfg.FrontendURL, cfg.ReminderTimezone)
 	if err != nil {
 		slog.Error("deadline reminder scheduler initialization failed", "error", err)
 		os.Exit(1)
 	}
-	go reminders.Run(ctx)
+	background.Add(1)
+	go func() { defer background.Done(); reminders.Run(ctx) }()
 	slog.Info("email worker started")
-	if err := notification.NewWorker(queue, notification.NewSMTPSender(cfg)).Run(ctx); err != nil {
-		slog.Error("email worker failed", "error", err)
+	runErr := notification.NewWorker(queue, notification.NewSMTPSender(cfg)).Run(ctx)
+	stop()
+	background.Wait()
+	if runErr != nil {
+		slog.Error("email worker failed", "error", runErr)
 		os.Exit(1)
 	}
 	slog.Info("email worker stopped")

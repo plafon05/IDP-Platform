@@ -2,13 +2,16 @@ package notification
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
 	"strings"
+	"time"
 
 	"idp-platform/backend/internal/config"
 )
@@ -60,5 +63,45 @@ func (s *SMTPSender) Send(to []string, message RenderedMessage) error {
 	if s.cfg.SMTPUsername != "" {
 		authentication = smtp.PlainAuth("", s.cfg.SMTPUsername, s.cfg.SMTPPassword, s.cfg.SMTPHost)
 	}
-	return smtp.SendMail(address, authentication, s.cfg.SMTPFromEmail, recipients, body.Bytes())
+	connection, err := net.DialTimeout("tcp", address, 15*time.Second)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	if err := connection.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return err
+	}
+	client, err := smtp.NewClient(connection, s.cfg.SMTPHost)
+	if err != nil {
+		return err
+	}
+	defer client.Quit()
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: s.cfg.SMTPHost, MinVersion: tls.VersionTLS12}); err != nil {
+			return err
+		}
+	} else if s.cfg.AppEnv == "production" {
+		return fmt.Errorf("SMTP server does not support STARTTLS")
+	}
+	if authentication != nil {
+		if err := client.Auth(authentication); err != nil {
+			return err
+		}
+	}
+	if err := client.Mail(s.cfg.SMTPFromEmail); err != nil {
+		return err
+	}
+	for _, recipient := range recipients {
+		if err := client.Rcpt(recipient); err != nil {
+			return err
+		}
+	}
+	smtpWriter, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := smtpWriter.Write(body.Bytes()); err != nil {
+		return err
+	}
+	return smtpWriter.Close()
 }

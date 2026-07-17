@@ -86,7 +86,7 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 
 	rows, err := tx.Query(ctx, `
 		SELECT id, payload FROM notification_outbox
-		WHERE published_at IS NULL ORDER BY created_at
+		WHERE published_at IS NULL AND failed_at IS NULL ORDER BY created_at
 		FOR UPDATE SKIP LOCKED LIMIT 50
 	`)
 	if err != nil {
@@ -96,6 +96,7 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 		id  string
 		job Job
 	}
+	failed := make(map[string]string)
 	items := make([]item, 0, 50)
 	for rows.Next() {
 		var current item
@@ -105,8 +106,8 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 			return err
 		}
 		if err := json.Unmarshal(payload, &current.job); err != nil {
-			rows.Close()
-			return err
+			failed[current.id] = err.Error()
+			continue
 		}
 		items = append(items, current)
 	}
@@ -115,6 +116,12 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 		return err
 	}
 	rows.Close()
+	for id, reason := range failed {
+		if _, err := tx.Exec(ctx, `UPDATE notification_outbox SET failed_at=NOW(), failure_reason=$2 WHERE id=$1`, id, reason); err != nil {
+			return err
+		}
+		slog.Error("notification outbox payload moved aside", "id", id, "error", reason)
+	}
 
 	for _, current := range items {
 		deliver, err := r.shouldDeliver(ctx, tx, current.job)

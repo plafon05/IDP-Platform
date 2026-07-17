@@ -21,8 +21,11 @@ type Worker struct {
 func NewWorker(queue *Queue, sender Sender) *Worker { return &Worker{queue: queue, sender: sender} }
 
 func (w *Worker) Run(ctx context.Context) error {
+	if err := w.queue.RecoverProcessing(ctx); err != nil {
+		return err
+	}
 	for {
-		job, err := w.queue.Dequeue(ctx)
+		job, payload, err := w.queue.Dequeue(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
@@ -38,6 +41,9 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		if err == nil {
 			slog.Info("email sent", "template", job.Template, "recipients", len(job.To))
+			if err := w.queue.Ack(ctx, payload); err != nil {
+				return err
+			}
 			continue
 		}
 		job.Attempts++
@@ -46,6 +52,9 @@ func (w *Worker) Run(ctx context.Context) error {
 			if deadErr := w.queue.DeadLetter(ctx, job); deadErr != nil {
 				return errors.Join(err, deadErr)
 			}
+			if ackErr := w.queue.Ack(ctx, payload); ackErr != nil {
+				return ackErr
+			}
 			continue
 		}
 		select {
@@ -53,7 +62,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			return nil
 		case <-time.After(time.Duration(job.Attempts) * time.Second):
 		}
-		if err := w.queue.Enqueue(ctx, job); err != nil {
+		if err := w.queue.Requeue(ctx, payload, job); err != nil {
 			return err
 		}
 	}
