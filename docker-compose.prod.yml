@@ -71,6 +71,8 @@ services:
     image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
     restart: unless-stopped
     read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     tmpfs: [/tmp]
     environment:
       APP_ENV: production
@@ -84,8 +86,8 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-720h}
       REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-idp_refresh_token}
       MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
       MINIO_BUCKET: ${MINIO_BUCKET:-idp-platform}
       MINIO_PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL is required}/objects
       MINIO_USE_SSL: "false"
@@ -108,6 +110,8 @@ services:
     image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
     restart: unless-stopped
     read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     tmpfs: [/tmp]
     entrypoint: ["/app/email-worker"]
     environment:
@@ -135,6 +139,8 @@ services:
     image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required}
     restart: unless-stopped
     read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     tmpfs:
       - /var/cache/nginx
       - /var/run
@@ -149,6 +155,9 @@ services:
     image: nginx:1.27-alpine
     restart: unless-stopped
     read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
     tmpfs:
       - /var/cache/nginx
       - /var/run

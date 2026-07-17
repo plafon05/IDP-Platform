@@ -33,7 +33,7 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
 
   frontend:
     name: Frontend
@@ -54,6 +54,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build
@@ -146,6 +149,9 @@ jobs:
           JWT_SECRETS: v1:test-secret
           MINIO_ROOT_USER: minio-test
           MINIO_ROOT_PASSWORD: test-password
+
+          MINIO_ACCESS_KEY: minio-app
+          MINIO_SECRET_KEY: test-password
           SMTP_HOST: smtp.example.test
           SMTP_PORT: "587"
           SMTP_FROM_EMAIL: noreply@example.test

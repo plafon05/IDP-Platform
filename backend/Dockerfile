@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /out/email-worker ./cmd/email-worker
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/migrate ./cmd/migrate
 
 FROM alpine:3.21
-RUN adduser -D -H -u 10001 appuser
+RUN apk add --no-cache ca-certificates && adduser -D -H -u 10001 appuser
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=build /out/email-worker /app/email-worker
