@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +22,7 @@ import (
 	"idp-platform/backend/internal/idp"
 	"idp-platform/backend/internal/migrations"
 	"idp-platform/backend/internal/notification"
+	"idp-platform/backend/internal/users"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,6 +44,25 @@ type fixture struct {
 }
 
 type recordingPublisher struct{ jobs []notification.Job }
+
+type recordingAvatarStore struct {
+	userID      string
+	contentType string
+	extension   string
+	payload     []byte
+}
+
+func (s *recordingAvatarStore) PutAvatar(_ context.Context, userID, contentType, extension string, reader io.Reader, _ int64) (string, error) {
+	payload, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+	s.userID = userID
+	s.contentType = contentType
+	s.extension = extension
+	s.payload = payload
+	return "http://storage.test/idp-platform/avatars/" + userID + extension, nil
+}
 
 func (p *recordingPublisher) Enqueue(_ context.Context, job notification.Job) error {
 	p.jobs = append(p.jobs, job)
@@ -65,7 +88,7 @@ func TestPhase2RoleMatrix(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		AppEnv: "test", DatabaseURL: dsn,
+		AppEnv: "test", DatabaseURL: dsn, RedisURL: os.Getenv("REDIS_URL"),
 		JWTSecrets:   []config.JWTSigningKey{{KeyID: "integration", Secret: "integration-test-secret"}},
 		JWTAccessTTL: time.Hour, JWTRefreshTTL: time.Hour, CORSOrigins: []string{"http://example.test"},
 	}
@@ -198,6 +221,25 @@ func TestPhase2RoleMatrix(t *testing.T) {
 				t.Fatalf("unexpected filtered analytics: %+v statuses=%#v", result.Summary, result.Statuses)
 			}
 		})
+	})
+
+	t.Run("end to end task progress flow", func(t *testing.T) {
+		managerSession := f.login(t, "manager@test.local", "TestPassword1")
+		employeeSession := f.login(t, "employee@test.local", "TestPassword1")
+		f.request(t, employeeSession, http.MethodPatch, "/api/v1/tasks/"+f.taskID+"/progress", map[string]any{
+			"status": "in_progress", "progress": 40,
+		}, http.StatusOK)
+		response := f.request(t, managerSession, http.MethodGet, "/api/v1/tasks/"+f.taskID, nil, http.StatusOK)
+		var task struct {
+			Progress int    `json:"progress"`
+			Status   string `json:"status"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &task); err != nil {
+			t.Fatal(err)
+		}
+		if task.Progress != 40 || task.Status != "in_progress" {
+			t.Fatalf("manager got task status=%s progress=%d", task.Status, task.Progress)
+		}
 	})
 
 	t.Run("template creates draft plan", func(t *testing.T) {
@@ -366,6 +408,139 @@ func TestPhase2RoleMatrix(t *testing.T) {
 			f.request(t, hrToken, http.MethodDelete, foreignIDPPath, nil, http.StatusNoContent)
 		})
 	})
+
+	t.Run("revoked roles and inactive accounts take effect immediately", func(t *testing.T) {
+		f.request(t, managerToken, http.MethodGet, "/api/v1/analytics/overview", nil, http.StatusOK)
+		if _, err := f.db.Exec(context.Background(), `DELETE FROM user_roles WHERE user_id=$1 AND role='manager'`, f.managerID); err != nil {
+			t.Fatal(err)
+		}
+		f.request(t, managerToken, http.MethodGet, "/api/v1/analytics/overview", nil, http.StatusForbidden)
+
+		if _, err := f.db.Exec(context.Background(), `UPDATE users SET is_active=false WHERE id=$1`, f.hrID); err != nil {
+			t.Fatal(err)
+		}
+		f.request(t, hrToken, http.MethodGet, "/api/v1/users", nil, http.StatusUnauthorized)
+	})
+
+	t.Run("outbox moves malformed payload aside and publishes next job", func(t *testing.T) {
+		redisURL := os.Getenv("REDIS_URL")
+		if redisURL == "" {
+			t.Skip("REDIS_URL is not set")
+		}
+		queue, err := notification.NewQueue(redisURL, "idp:email:integration:outbox:"+time.Now().UTC().Format("20060102150405.000000000"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer queue.Close()
+		if err := queue.Ping(context.Background()); err != nil {
+			t.Skipf("Redis is unavailable: %v", err)
+		}
+
+		var malformedID string
+		if err := f.db.QueryRow(context.Background(), `INSERT INTO notification_outbox(payload) VALUES('{"to":"not-an-array"}') RETURNING id::text`).Scan(&malformedID); err != nil {
+			t.Fatal(err)
+		}
+		outbox := notification.NewOutbox(f.db)
+		job := notification.Job{To: []string{"employee@test.local"}, Template: notification.CommentCreatedTemplate}
+		if err := outbox.Enqueue(context.Background(), job); err != nil {
+			t.Fatal(err)
+		}
+
+		relay := notification.NewRelay(f.db, queue, "integration-secret", "http://example.test")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go relay.Run(ctx)
+		var failureReason *string
+		published, _, err := queue.Dequeue(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.db.QueryRow(context.Background(), `SELECT failure_reason FROM notification_outbox WHERE id=$1`, malformedID).Scan(&failureReason); err != nil {
+			t.Fatal(err)
+		}
+		if failureReason == nil || *failureReason == "" {
+			t.Fatal("malformed outbox payload was not marked as failed")
+		}
+		if published.Template != job.Template || published.To[0] != job.To[0] {
+			t.Fatalf("unexpected published job: %#v", published)
+		}
+	})
+
+	t.Run("password change revokes existing refresh tokens", func(t *testing.T) {
+		refreshToken, refreshTokenHash, err := auth.GenerateRefreshToken()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := auth.StoreRefreshToken(context.Background(), f.db, f.employeeID, refreshTokenHash, time.Now().Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		service := users.NewService(f.db, nil, "http://example.test")
+		if err := service.ChangePassword(context.Background(), f.employeeID, "TestPassword1", "NewPassword2"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := auth.NewService(f.cfg, f.db, nil).Refresh(context.Background(), refreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+			t.Fatalf("revoked token error = %v, want %v", err, auth.ErrInvalidToken)
+		}
+		if _, err := auth.NewService(f.cfg, f.db, nil).Login(context.Background(), "employee@test.local", "NewPassword2"); err != nil {
+			t.Fatalf("login with new password failed: %v", err)
+		}
+	})
+
+	t.Run("password reset token is single use", func(t *testing.T) {
+		token, tokenHash, err := auth.GeneratePasswordResetToken()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.db.Exec(context.Background(), `INSERT INTO password_reset_tokens(user_id, token_hash, expires_at) VALUES($1, $2, $3)`, f.outsiderID, tokenHash, time.Now().Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		service := auth.NewService(f.cfg, f.db, nil)
+		if err := service.ResetPassword(context.Background(), token, "ResetPassword3"); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ResetPassword(context.Background(), token, "AnotherPassword4"); !errors.Is(err, auth.ErrInvalidResetToken) {
+			t.Fatalf("reused token error = %v, want %v", err, auth.ErrInvalidResetToken)
+		}
+		if _, err := service.Login(context.Background(), "outsider@test.local", "ResetPassword3"); err != nil {
+			t.Fatalf("login with reset password failed: %v", err)
+		}
+	})
+
+	t.Run("authenticated employee uploads PNG avatar", func(t *testing.T) {
+		store := &recordingAvatarStore{}
+		router := handler.NewRouter(f.cfg, f.db, store, f.publisher)
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		part, err := writer.CreateFormFile("avatar", "avatar.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+		if _, err := part.Write(png); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/users/me/avatar", &body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Authorization", "Bearer "+employeeToken)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		if response.Code != http.StatusOK {
+			t.Fatalf("avatar upload: status=%d body=%s", response.Code, response.Body.String())
+		}
+		if store.userID != f.employeeID || store.contentType != "image/png" || store.extension != ".png" || !bytes.Equal(store.payload, png) {
+			t.Fatalf("unexpected storage call: user=%s type=%s extension=%s payload=%x", store.userID, store.contentType, store.extension, store.payload)
+		}
+		var avatarURL string
+		if err := f.db.QueryRow(context.Background(), `SELECT avatar_url FROM users WHERE id=$1`, f.employeeID).Scan(&avatarURL); err != nil {
+			t.Fatal(err)
+		}
+		if avatarURL != "http://storage.test/idp-platform/avatars/"+f.employeeID+".png" {
+			t.Fatalf("unexpected avatar URL: %s", avatarURL)
+		}
+	})
 }
 
 func (f *fixture) seed(t *testing.T) {
@@ -457,6 +632,31 @@ func (f *fixture) token(t *testing.T, userID string, roles ...string) string {
 		t.Fatal(err)
 	}
 	return token
+}
+
+func (f *fixture) login(t *testing.T, email, password string) string {
+	t.Helper()
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(map[string]string{"email": email, "password": password}); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", &body)
+	req.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	f.router.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("login %s: status=%d body=%s", email, response.Code, response.Body.String())
+	}
+	var payload struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.AccessToken == "" {
+		t.Fatal("login response does not contain access token")
+	}
+	return payload.AccessToken
 }
 
 func (f *fixture) request(t *testing.T, token, method, path string, payload any, wantStatus int) *httptest.ResponseRecorder {

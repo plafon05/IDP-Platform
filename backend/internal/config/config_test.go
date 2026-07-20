@@ -11,6 +11,13 @@ func TestLoadJWTSecrets(t *testing.T) {
 	}
 }
 
+func TestValidateProductionRejectsUnsafeDefaults(t *testing.T) {
+	cfg := Config{AppEnv: "production", JWTSecrets: []JWTSigningKey{{KeyID: "default", Secret: "local-development-secret-change-me"}}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected unsafe production configuration to be rejected")
+	}
+}
+
 func TestLoadJWTSecretLegacyFallback(t *testing.T) {
 	t.Setenv("JWT_SECRETS", "")
 	t.Setenv("JWT_SECRET", "legacy-secret")

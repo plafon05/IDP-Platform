@@ -58,6 +58,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
 
@@ -104,7 +107,7 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Integration tests
-        run: go test ./integration -count=1 -v
+        run: go test ./integration ./internal/notification -count=1 -v
 
   containers:
     name: Containers and production config
